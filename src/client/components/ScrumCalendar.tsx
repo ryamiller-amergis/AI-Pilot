@@ -1,13 +1,14 @@
-import React, { useState, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { Calendar, dateFnsLocalizer, View } from 'react-big-calendar';
 import { format, parse, startOfWeek, getDay } from 'date-fns';
+import enUSLocale from 'date-fns/locale/en-US';
 import { useDrop, useDrag } from 'react-dnd';
 import { WorkItem } from '../types/workitem';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import './ScrumCalendar.css';
 
 const locales = {
-  'en-US': require('date-fns/locale/en-US'),
+  'en-US': enUSLocale,
 };
 
 const localizer = dateFnsLocalizer({
