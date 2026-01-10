@@ -5,15 +5,23 @@ import './DetailsPanel.css';
 interface DetailsPanelProps {
   workItem: WorkItem | null;
   onClose: () => void;
+  onUpdateDueDate: (id: number, dueDate: string | null) => void;
 }
 
 export const DetailsPanel: React.FC<DetailsPanelProps> = ({
   workItem,
   onClose,
+  onUpdateDueDate,
 }) => {
   if (!workItem) return null;
 
-  const adoUrl = `${import.meta.env.VITE_ADO_ORG || ''}/${import.meta.env.VITE_ADO_PROJECT || ''}/_workitems/edit/${workItem.id}`;
+  const adoOrg = import.meta.env.VITE_ADO_ORG || 'amergis';
+  const adoProject = import.meta.env.VITE_ADO_PROJECT || 'MaxView';
+  const adoUrl = `https://dev.azure.com/${adoOrg}/${adoProject}/_workitems/edit/${workItem.id}`;
+
+  const handleRemoveDueDate = () => {
+    onUpdateDueDate(workItem.id, null);
+  };
 
   return (
     <div className="details-panel">
@@ -46,6 +54,13 @@ export const DetailsPanel: React.FC<DetailsPanelProps> = ({
           <span className="detail-label">Due Date:</span>
           <span className="detail-value">{workItem.dueDate || 'Not set'}</span>
         </div>
+        {workItem.dueDate && (
+          <div className="detail-row">
+            <button onClick={handleRemoveDueDate} className="remove-due-date-btn">
+              Remove Due Date
+            </button>
+          </div>
+        )}
         <div className="detail-row">
           <span className="detail-label">Area Path:</span>
           <span className="detail-value">{workItem.areaPath}</span>

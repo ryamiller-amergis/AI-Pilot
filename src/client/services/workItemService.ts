@@ -36,4 +36,20 @@ export const workItemService = {
     const response = await fetch(`${API_BASE}/health`);
     return response.json();
   },
+
+  async calculateCycleTime(workItemIds: number[]): Promise<Record<number, any>> {
+    const response = await fetch(`${API_BASE}/cycle-time`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ workItemIds }),
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to calculate cycle time');
+    }
+
+    return response.json();
+  },
 };

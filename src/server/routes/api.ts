@@ -42,6 +42,24 @@ router.patch('/workitems/:id/due-date', async (req: Request, res: Response) => {
   }
 });
 
+// POST /api/cycle-time - Calculate cycle time for specific work items
+router.post('/cycle-time', async (req: Request, res: Response) => {
+  try {
+    const { workItemIds } = req.body as { workItemIds: number[] };
+
+    if (!Array.isArray(workItemIds) || workItemIds.length === 0) {
+      return res.status(400).json({ error: 'workItemIds array is required' });
+    }
+
+    console.log(`Calculating cycle time for ${workItemIds.length} work items`);
+    const cycleTimeData = await adoService.calculateCycleTimeForItems(workItemIds);
+    res.json(cycleTimeData);
+  } catch (error: any) {
+    console.error('Error calculating cycle time:', error);
+    res.status(500).json({ error: 'Failed to calculate cycle time' });
+  }
+});
+
 // GET /api/health - Health check endpoint
 router.get('/health', async (req: Request, res: Response) => {
   try {

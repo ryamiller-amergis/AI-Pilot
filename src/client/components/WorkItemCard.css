@@ -1,6 +1,6 @@
 .work-item-card {
-  background: white;
-  border: 1px solid #e0e0e0;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
   border-radius: 4px;
   padding: 8px;
   margin-bottom: 4px;
@@ -9,7 +9,7 @@
 }
 
 .work-item-card:hover {
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 4px var(--shadow-sm);
 }
 
 .work-item-card.dragging {
@@ -18,7 +18,7 @@
 
 .work-item-id {
   font-weight: bold;
-  color: #0078d4;
+  color: var(--accent-color);
   margin-bottom: 4px;
 }
 
@@ -28,18 +28,20 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  color: var(--text-primary);
 }
 
 .work-item-state {
   display: inline-block;
   padding: 2px 6px;
-  background: #f0f0f0;
+  background: var(--bg-secondary);
   border-radius: 3px;
   font-size: 10px;
   margin-bottom: 2px;
+  color: var(--text-primary);
 }
 
 .work-item-assigned {
   font-size: 10px;
-  color: #666;
+  color: var(--text-secondary);
 }

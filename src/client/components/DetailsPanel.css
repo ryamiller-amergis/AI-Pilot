@@ -4,9 +4,9 @@
   top: 0;
   width: 350px;
   height: 100vh;
-  background: white;
-  border-left: 1px solid #e0e0e0;
-  box-shadow: -2px 0 8px rgba(0, 0, 0, 0.1);
+  background: var(--bg-primary);
+  border-left: 1px solid var(--border-color);
+  box-shadow: -2px 0 8px var(--shadow-sm);
   z-index: 1000;
   overflow-y: auto;
 }
@@ -16,12 +16,13 @@
   justify-content: space-between;
   align-items: center;
   padding: 20px;
-  border-bottom: 1px solid #e0e0e0;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .details-header h3 {
   margin: 0;
   font-size: 18px;
+  color: var(--text-primary);
 }
 
 .close-btn {
@@ -29,17 +30,18 @@
   border: none;
   font-size: 24px;
   cursor: pointer;
-  color: #666;
+  color: var(--text-secondary);
   padding: 0;
   width: 30px;
   height: 30px;
   display: flex;
   align-items: center;
   justify-content: center;
+  transition: color 0.2s;
 }
 
 .close-btn:hover {
-  color: #000;
+  color: var(--text-primary);
 }
 
 .details-content {
@@ -54,22 +56,44 @@
   display: block;
   font-weight: 600;
   margin-bottom: 4px;
-  color: #333;
+  color: var(--text-primary);
   font-size: 14px;
 }
 
 .detail-value {
   display: block;
-  color: #666;
+  color: var(--text-secondary);
   font-size: 14px;
 }
 
 .ado-link {
-  color: #0078d4;
+  color: var(--accent-color);
   text-decoration: none;
   font-weight: 500;
+  transition: opacity 0.2s;
 }
 
 .ado-link:hover {
   text-decoration: underline;
+  opacity: 0.8;
+}
+
+.remove-due-date-btn {
+  padding: 8px 16px;
+  background: var(--error-color);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: opacity 0.2s;
+  width: 100%;
+}
+
+.remove-due-date-btn:hover {
+  opacity: 0.9;
+}
+
+.remove-due-date-btn:active {
+  opacity: 0.8;
 }
