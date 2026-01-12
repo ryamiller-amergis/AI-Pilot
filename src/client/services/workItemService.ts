@@ -3,10 +3,12 @@ import { WorkItem } from '../types/workitem';
 const API_BASE = '/api';
 
 export const workItemService = {
-  async getWorkItems(from?: string, to?: string): Promise<WorkItem[]> {
+  async getWorkItems(from?: string, to?: string, project?: string, areaPath?: string): Promise<WorkItem[]> {
     const params = new URLSearchParams();
     if (from) params.append('from', from);
     if (to) params.append('to', to);
+    if (project) params.append('project', project);
+    if (areaPath) params.append('areaPath', areaPath);
 
     const url = `${API_BASE}/workitems${params.toString() ? '?' + params.toString() : ''}`;
     const response = await fetch(url);
@@ -18,13 +20,13 @@ export const workItemService = {
     return response.json();
   },
 
-  async updateDueDate(id: number, dueDate: string | null, reason?: string): Promise<void> {
+  async updateDueDate(id: number, dueDate: string | null, reason?: string, project?: string, areaPath?: string): Promise<void> {
     const response = await fetch(`${API_BASE}/workitems/${id}/due-date`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ dueDate, reason }),
+      body: JSON.stringify({ dueDate, reason, project, areaPath }),
     });
 
     if (!response.ok) {
@@ -37,13 +39,13 @@ export const workItemService = {
     return response.json();
   },
 
-  async calculateCycleTime(workItemIds: number[]): Promise<Record<number, any>> {
+  async calculateCycleTime(workItemIds: number[], project?: string, areaPath?: string): Promise<Record<number, any>> {
     const response = await fetch(`${API_BASE}/cycle-time`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ workItemIds }),
+      body: JSON.stringify({ workItemIds, project, areaPath }),
     });
 
     if (!response.ok) {

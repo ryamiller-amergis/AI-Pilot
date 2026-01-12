@@ -5,6 +5,8 @@ import './CycleTimeAnalytics.css';
 
 interface CycleTimeAnalyticsProps {
   workItems: WorkItem[];
+  project: string;
+  areaPath: string;
 }
 
 interface CycleTimeData {
@@ -22,7 +24,7 @@ interface CycleTimeData {
   qaCycleTimeDays?: number;
 }
 
-export const CycleTimeAnalytics: React.FC<CycleTimeAnalyticsProps> = ({ workItems }) => {
+export const CycleTimeAnalytics: React.FC<CycleTimeAnalyticsProps> = ({ workItems, project, areaPath }) => {
   const [selectedIterations, setSelectedIterations] = useState<string[]>([]);
   const [selectedDeveloper, setSelectedDeveloper] = useState<string>('');
   const [selectedQa, setSelectedQa] = useState<string>('');
@@ -105,7 +107,7 @@ export const CycleTimeAnalytics: React.FC<CycleTimeAnalyticsProps> = ({ workItem
       const workItemIds = filteredItems.map(item => item.id);
       console.log(`Calculating cycle time for ${workItemIds.length} items in ${selectedIterations.length} iterations`);
       
-      const result = await workItemService.calculateCycleTime(workItemIds);
+      const result = await workItemService.calculateCycleTime(workItemIds, project, areaPath);
       console.log('Cycle time result:', result);
       console.log('Items with cycle time data:', Object.keys(result).length);
       setCycleTimeMap(result);

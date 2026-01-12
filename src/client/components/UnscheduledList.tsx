@@ -16,6 +16,8 @@ export const UnscheduledList: React.FC<UnscheduledListProps> = ({
 }) => {
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [selectedIteration, setSelectedIteration] = useState<string>('');
+  const [selectedWorkItemType, setSelectedWorkItemType] = useState<string>('');
+  const [selectedAssignedTo, setSelectedAssignedTo] = useState<string>('');
   const [isDropZone, setIsDropZone] = useState(false);
 
   // Get unique iteration values
@@ -29,12 +31,44 @@ export const UnscheduledList: React.FC<UnscheduledListProps> = ({
     return Array.from(unique).sort();
   }, [workItems]);
 
+  // Get unique work item types
+  const workItemTypeOptions = useMemo(() => {
+    const unique = new Set<string>();
+    workItems.forEach(item => {
+      if (item.workItemType) {
+        unique.add(item.workItemType);
+      }
+    });
+    return Array.from(unique).sort();
+  }, [workItems]);
+
+  // Get unique assigned to values
+  const assignedToOptions = useMemo(() => {
+    const unique = new Set<string>();
+    workItems.forEach(item => {
+      if (item.assignedTo) {
+        unique.add(item.assignedTo);
+      }
+    });
+    return Array.from(unique).sort();
+  }, [workItems]);
+
   const filteredItems = useMemo(() => {
     let items = workItems;
     
     // Filter by iteration
     if (selectedIteration) {
       items = items.filter(item => item.iterationPath === selectedIteration);
+    }
+
+    // Filter by work item type
+    if (selectedWorkItemType) {
+      items = items.filter(item => item.workItemType === selectedWorkItemType);
+    }
+
+    // Filter by assigned to
+    if (selectedAssignedTo) {
+      items = items.filter(item => item.assignedTo === selectedAssignedTo);
     }
     
     // Filter by search term
@@ -48,7 +82,7 @@ export const UnscheduledList: React.FC<UnscheduledListProps> = ({
     }
     
     return items;
-  }, [workItems, searchTerm, selectedIteration]);
+  }, [workItems, searchTerm, selectedIteration, selectedWorkItemType, selectedAssignedTo]);
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -90,6 +124,36 @@ export const UnscheduledList: React.FC<UnscheduledListProps> = ({
         }}
         className="search-input"
       />
+      <div className="filter-row">
+        <select
+          value={selectedWorkItemType}
+          onChange={(e) => {
+            setSelectedWorkItemType(e.target.value);
+            onSelectItem(null as any);
+          }}
+          className="filter-select"
+        >
+          <option value="">All Types</option>
+          {workItemTypeOptions.map(type => (
+            <option key={type} value={type}>
+              {type === 'Product Backlog Item' ? 'PBI' : type === 'Technical Backlog Item' ? 'TBI' : type}
+            </option>
+          ))}
+        </select>
+        <select
+          value={selectedAssignedTo}
+          onChange={(e) => {
+            setSelectedAssignedTo(e.target.value);
+            onSelectItem(null as any);
+          }}
+          className="filter-select"
+        >
+          <option value="">Assigned To</option>
+          {assignedToOptions.map(person => (
+            <option key={person} value={person}>{person}</option>
+          ))}
+        </select>
+      </div>
       <select
         value={selectedIteration}
         onChange={(e) => {

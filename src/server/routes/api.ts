@@ -3,12 +3,12 @@ import { AzureDevOpsService } from '../services/azureDevOps';
 import { WorkItemsQuery, UpdateDueDateRequest } from '../types/workitem';
 
 const router = express.Router();
-const adoService = new AzureDevOpsService();
 
 // GET /api/workitems - Fetch work items for date range
 router.get('/workitems', async (req: Request, res: Response) => {
   try {
-    const { from, to } = req.query as WorkItemsQuery;
+    const { from, to, project, areaPath } = req.query as WorkItemsQuery & { project?: string; areaPath?: string };
+    const adoService = new AzureDevOpsService(project, areaPath);
     const workItems = await adoService.getWorkItems(from, to);
     res.json(workItems);
   } catch (error: any) {
@@ -21,7 +21,7 @@ router.get('/workitems', async (req: Request, res: Response) => {
 router.patch('/workitems/:id/due-date', async (req: Request, res: Response) => {
   try {
     const id = parseInt(req.params.id, 10);
-    const { dueDate, reason } = req.body as UpdateDueDateRequest;
+    const { dueDate, reason, project, areaPath } = req.body as UpdateDueDateRequest & { project?: string; areaPath?: string };
 
     if (isNaN(id)) {
       return res.status(400).json({ error: 'Invalid work item ID' });
@@ -34,6 +34,7 @@ router.patch('/workitems/:id/due-date', async (req: Request, res: Response) => {
         .json({ error: 'Invalid date format. Use YYYY-MM-DD' });
     }
 
+    const adoService = new AzureDevOpsService(project, areaPath);
     await adoService.updateDueDate(id, dueDate, reason);
     res.json({ success: true });
   } catch (error: any) {
@@ -46,7 +47,7 @@ router.patch('/workitems/:id/due-date', async (req: Request, res: Response) => {
 router.patch('/workitems/:id/field', async (req: Request, res: Response) => {
   try {
     const id = parseInt(req.params.id, 10);
-    const { field, value } = req.body;
+    const { field, value, project, areaPath } = req.body;
 
     if (isNaN(id)) {
       return res.status(400).json({ error: 'Invalid work item ID' });
@@ -56,6 +57,7 @@ router.patch('/workitems/:id/field', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Field name is required' });
     }
 
+    const adoService = new AzureDevOpsService(project, areaPath);
     await adoService.updateWorkItemField(id, field, value);
     res.json({ success: true });
   } catch (error: any) {
@@ -67,13 +69,14 @@ router.patch('/workitems/:id/field', async (req: Request, res: Response) => {
 // POST /api/cycle-time - Calculate cycle time for specific work items
 router.post('/cycle-time', async (req: Request, res: Response) => {
   try {
-    const { workItemIds } = req.body as { workItemIds: number[] };
+    const { workItemIds, project, areaPath } = req.body as { workItemIds: number[]; project?: string; areaPath?: string };
 
     if (!Array.isArray(workItemIds) || workItemIds.length === 0) {
       return res.status(400).json({ error: 'workItemIds array is required' });
     }
 
     console.log(`Calculating cycle time for ${workItemIds.length} work items`);
+    const adoService = new AzureDevOpsService(project, areaPath);
     const cycleTimeData = await adoService.calculateCycleTimeForItems(workItemIds);
     res.json(cycleTimeData);
   } catch (error: any) {
@@ -85,6 +88,8 @@ router.post('/cycle-time', async (req: Request, res: Response) => {
 // GET /api/health - Health check endpoint
 router.get('/health', async (req: Request, res: Response) => {
   try {
+    // Health check uses default project from env
+    const adoService = new AzureDevOpsService();
     const healthy = await adoService.healthCheck();
     res.json({ healthy, timestamp: new Date().toISOString() });
   } catch (error: any) {
@@ -96,7 +101,8 @@ router.get('/health', async (req: Request, res: Response) => {
 // GET /api/due-date-stats - Get due date change statistics by developer
 router.get('/due-date-stats', async (req: Request, res: Response) => {
   try {
-    const { from, to, developer } = req.query as WorkItemsQuery & { developer?: string };
+    const { from, to, developer, project, areaPath } = req.query as WorkItemsQuery & { developer?: string; project?: string; areaPath?: string };
+    const adoService = new AzureDevOpsService(project, areaPath);
     const stats = await adoService.getDueDateStatsByDeveloper(from, to, developer);
     res.json(stats);
   } catch (error: any) {

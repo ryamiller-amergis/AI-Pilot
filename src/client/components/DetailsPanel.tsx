@@ -8,6 +8,7 @@ interface DetailsPanelProps {
   onUpdateDueDate: (id: number, dueDate: string | null, reason?: string) => void;
   allWorkItems?: WorkItem[];
   onUpdateField?: (id: number, field: string, value: any) => void;
+  isSaving?: boolean;
 }
 
 export const DetailsPanel: React.FC<DetailsPanelProps> = ({
@@ -16,6 +17,7 @@ export const DetailsPanel: React.FC<DetailsPanelProps> = ({
   onUpdateDueDate,
   allWorkItems = [],
   onUpdateField,
+  isSaving = false,
 }) => {
   const [isEditingDueDate, setIsEditingDueDate] = useState(false);
   const [tempDueDate, setTempDueDate] = useState('');
@@ -92,6 +94,7 @@ export const DetailsPanel: React.FC<DetailsPanelProps> = ({
     <div className="details-panel">
       <div className="details-header">
         <h3>Work Item Details</h3>
+        {isSaving && <span className="saving-badge">Saving...</span>}
         <button onClick={onClose} className="close-btn">
           ×
         </button>

@@ -4,9 +4,11 @@ import { useState, useMemo } from 'react';
 
 interface DevStatsProps {
   workItems: WorkItem[];
+  project: string;
+  areaPath: string;
 }
 
-export const DevStats: React.FC<DevStatsProps> = ({ workItems }) => {
+export const DevStats: React.FC<DevStatsProps> = ({ workItems, project, areaPath }) => {
   const [dueDateStats, setDueDateStats] = useState<DeveloperDueDateStats[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -59,6 +61,8 @@ export const DevStats: React.FC<DevStatsProps> = ({ workItems }) => {
         if (fromDate) params.append('from', fromDate);
         if (toDate) params.append('to', toDate);
         if (selectedDeveloper !== 'all') params.append('developer', selectedDeveloper);
+        if (project) params.append('project', project);
+        if (areaPath) params.append('areaPath', areaPath);
         
         const response = await fetch(`/api/due-date-stats?${params.toString()}`);
         if (!response.ok) {

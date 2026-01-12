@@ -17,12 +17,33 @@
   align-items: center;
   padding: 20px;
   border-bottom: 1px solid var(--border-color);
+  gap: 12px;
 }
 
 .details-header h3 {
   margin: 0;
   font-size: 18px;
   color: var(--text-primary);
+  flex: 1;
+}
+
+.saving-badge {
+  color: var(--accent-color);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 4px 10px;
+  background: var(--calendar-event-bg);
+  border-radius: 12px;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
 }
 
 .close-btn {

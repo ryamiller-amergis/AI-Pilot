@@ -11,6 +11,7 @@ interface DueDateReasonModalProps {
 }
 
 const REASON_OPTIONS = [
+  'Initialize',
   'Bug Findings',
   'Incorrect Estimate',
   'Incorrect Implementation',

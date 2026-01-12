@@ -41,6 +41,29 @@
   color: var(--text-muted);
 }
 
+.filter-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.filter-select {
+  flex: 1;
+  padding: 8px 4px;
+  border: 1px solid var(--border-color-light);
+  border-radius: 4px;
+  font-size: 13px;
+  box-sizing: border-box;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.filter-select:focus {
+  outline: none;
+  border-color: var(--accent-color);
+}
+
 .iteration-select {
   width: 100%;
   padding: 8px 12px;

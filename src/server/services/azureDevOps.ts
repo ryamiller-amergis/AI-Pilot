@@ -8,15 +8,19 @@ export class AzureDevOpsService {
   private project: string;
   private areaPath: string;
 
-  constructor() {
+  constructor(project?: string, areaPath?: string) {
     const orgUrl = process.env.ADO_ORG;
     const pat = process.env.ADO_PAT;
-    this.project = process.env.ADO_PROJECT || '';
-    this.areaPath = process.env.ADO_AREA_PATH || '';
+    const defaultProject = process.env.ADO_PROJECT || '';
+    const defaultAreaPath = process.env.ADO_AREA_PATH || '';
+    
+    // Use provided project/areaPath or fall back to env defaults
+    this.project = project || defaultProject;
+    this.areaPath = areaPath || defaultAreaPath;
 
     if (!orgUrl || !pat || !this.project) {
       throw new Error(
-        'Missing required environment variables: ADO_ORG, ADO_PAT, ADO_PROJECT'
+        'Missing required environment variables: ADO_ORG, ADO_PAT, and project must be provided'
       );
     }
 
@@ -33,11 +37,12 @@ export class AzureDevOpsService {
     return retryWithBackoff(async () => {
       const witApi = await this.connection.getWorkItemTrackingApi();
 
-      // Build WIQL query
-      let wiql = `SELECT [System.Id] FROM WorkItems WHERE [System.TeamProject] = '${this.project}' AND [System.WorkItemType] = 'Product Backlog Item'`;
+      // Build WIQL query to include both Product Backlog Items and Technical Backlog Items
+      let wiql = `SELECT [System.Id] FROM WorkItems WHERE [System.TeamProject] = '${this.project}' AND ([System.WorkItemType] = 'Product Backlog Item' OR [System.WorkItemType] = 'Technical Backlog Item')`;
 
       if (this.areaPath) {
-        wiql += ` AND [System.AreaPath] UNDER '${this.areaPath}'`;
+        // Use exact match (=) instead of UNDER to avoid getting child area paths
+        wiql += ` AND [System.AreaPath] = '${this.areaPath}'`;
       }
 
       // Query for items in date range OR with no due date

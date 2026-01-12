@@ -29,6 +29,48 @@ function App() {
     return (saved as 'light' | 'dark') || 'dark';
   });
   
+  // Parse available projects and area paths from environment
+  const { availableProjects, availableAreaPaths } = useMemo(() => {
+    const teamsEnv = import.meta.env.VITE_TEAMS || 'MaxView|MaxView';
+    const projects = new Set<string>();
+    const areaPaths = new Set<string>();
+    
+    teamsEnv.split(',').forEach((team: string) => {
+      const [project, areaPath] = team.trim().split('|');
+      if (project) projects.add(project);
+      // Keep the full area path including hierarchy
+      if (areaPath) areaPaths.add(areaPath);
+    });
+    
+    return {
+      availableProjects: Array.from(projects).sort(),
+      availableAreaPaths: Array.from(areaPaths).sort()
+    };
+  }, []);
+  
+  // Selected project and area path (load from localStorage or defaults)
+  const [selectedProject, setSelectedProject] = useState<string>(() => {
+    const saved = localStorage.getItem('selectedProject');
+    return saved || availableProjects[0] || 'MaxView';
+  });
+  
+  const [selectedAreaPath, setSelectedAreaPath] = useState<string>(() => {
+    const saved = localStorage.getItem('selectedAreaPath');
+    return saved || availableAreaPaths[0] || 'MaxView';
+  });
+  
+  const [isChangingTeam, setIsChangingTeam] = useState(false);
+  const currentTeamRef = useRef({ project: selectedProject, areaPath: selectedAreaPath });
+  const [isSaving, setIsSaving] = useState(false);
+  
+  useEffect(() => {
+    localStorage.setItem('selectedProject', selectedProject);
+  }, [selectedProject]);
+  
+  useEffect(() => {
+    localStorage.setItem('selectedAreaPath', selectedAreaPath);
+  }, [selectedAreaPath]);
+  
   // Track original due dates and pending changes
   const originalDueDates = useRef<Map<number, string | undefined>>(new Map());
   const [pendingDueDateChange, setPendingDueDateChange] = useState<DueDateChange | null>(null);
@@ -42,28 +84,49 @@ function App() {
     setTheme(prev => prev === 'light' ? 'dark' : 'light');
   };
 
-  const startDate = startOfMonth(currentDate);
-  const endDate = endOfMonth(currentDate);
+  const startDate = useMemo(() => startOfMonth(currentDate), [currentDate]);
+  const endDate = useMemo(() => endOfMonth(currentDate), [currentDate]);
 
-  const { workItems, loading, error, updateDueDate } = useWorkItems(
+  const { workItems, loading, error, updateDueDate, refetch } = useWorkItems(
     startDate,
-    endDate
+    endDate,
+    selectedProject,
+    selectedAreaPath
   );
+  
+  // Handle team changes with loading state - must be after useWorkItems
+  useEffect(() => {
+    // Clear loading state only when data is loaded AND matches the selected team
+    if (isChangingTeam && !loading) {
+      // Update the current team ref to match what's displayed
+      currentTeamRef.current = { project: selectedProject, areaPath: selectedAreaPath };
+      setIsChangingTeam(false);
+    }
+  }, [isChangingTeam, loading, selectedProject, selectedAreaPath]);
+  
+  const isLoading = loading || isChangingTeam;
 
   const handleFieldUpdate = async (id: number, field: string, value: any) => {
     console.log(`Updating work item ${id} field ${field} to:`, value);
     
-    // Optimistic update
+    setIsSaving(true);
     const response = await fetch(`/api/workitems/${id}/field`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ field, value }),
+      body: JSON.stringify({ field, value, project: selectedProject, areaPath: selectedAreaPath }),
     });
 
     if (!response.ok) {
       console.error('Failed to update field');
+      setIsSaving(false);
+    } else {
+      // Trigger immediate refetch to get updated data
+      setTimeout(() => {
+        refetch?.();
+        setIsSaving(false);
+      }, 500); // Small delay to allow ADO to process
     }
   };
 
@@ -155,18 +218,25 @@ function App() {
     setPendingDueDateChange(null);
   };
 
-  if (loading) {
-    return (
-      <div className="app-loading">
-        <div className="spinner"></div>
-        <p>Loading work items...</p>
-      </div>
-    );
-  }
-
   return (
     <DndProvider backend={HTML5Backend}>
       <div className="app">
+        {isLoading && (
+          <div className="loading-overlay">
+            <div className="loading-spinner-container">
+              <div className="spinner"></div>
+              <p>Loading work items...</p>
+            </div>
+          </div>
+        )}
+        {isSaving && (
+          <div className="saving-indicator">
+            <div className="saving-content">
+              <div className="saving-spinner"></div>
+              <span>Saving...</span>
+            </div>
+          </div>
+        )}
         <div className="app-header">
           <div className="view-switcher">
             <button 
@@ -182,13 +252,59 @@ function App() {
               Analytics
             </button>
           </div>
-          <button className="theme-toggle" onClick={toggleTheme} title={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}>
-            {theme === 'light' ? 'Dark' : 'Light'}
-          </button>
+          <div className="header-controls">
+            <div className="selector-group">
+              <label htmlFor="project-selector">Project:</label>
+              <select 
+                id="project-selector"
+                className="team-selector"
+                value={selectedProject}
+                onChange={(e) => {
+                  setIsChangingTeam(true);
+                  setSelectedProject(e.target.value);
+                }}
+                disabled={isLoading}
+              >
+                {availableProjects.map((project) => (
+                  <option key={project} value={project}>
+                    {project}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="selector-group">
+              <label htmlFor="team-selector">Team:</label>
+              <select 
+                id="team-selector"
+                className="team-selector"
+                value={selectedAreaPath}
+                onChange={(e) => {
+                  setIsChangingTeam(true);
+                  setSelectedAreaPath(e.target.value);
+                }}
+                disabled={isLoading}
+              >
+                {availableAreaPaths.map((areaPath) => {
+                  // Display just the team name (last part after backslash)
+                  const displayName = areaPath.includes('\\') 
+                    ? areaPath.split('\\').pop() || areaPath
+                    : areaPath;
+                  return (
+                    <option key={areaPath} value={areaPath}>
+                      {displayName}
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+            <button className="theme-toggle" onClick={toggleTheme} title={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}>
+              {theme === 'light' ? 'Dark' : 'Light'}
+            </button>
+          </div>
         </div>
         {error && <div className="error-banner">{error}</div>}
         
-        {currentView === 'calendar' ? (
+        {!isLoading && currentView === 'calendar' ? (
           <div className="calendar-view">
             <UnscheduledList
               workItems={unscheduledItems}
@@ -215,6 +331,7 @@ function App() {
                 onUpdateDueDate={handleDueDateChange}
                 allWorkItems={workItems}
                 onUpdateField={handleFieldUpdate}
+                isSaving={isSaving}
               />
             )}
             {pendingDueDateChange && (
@@ -228,7 +345,7 @@ function App() {
               />
             )}
           </div>
-        ) : (
+        ) : !isLoading && (
           <div className="analytics-view">
             <div className="analytics-tabs">
               <button
@@ -246,9 +363,17 @@ function App() {
             </div>
             <div className="analytics-content">
               {analyticsTab === 'cycle-time' ? (
-                <CycleTimeAnalytics workItems={workItems} />
+                <CycleTimeAnalytics 
+                  workItems={workItems}
+                  project={selectedProject}
+                  areaPath={selectedAreaPath}
+                />
               ) : (
-                <DevStats workItems={workItems} />
+                <DevStats 
+                  workItems={workItems}
+                  project={selectedProject}
+                  areaPath={selectedAreaPath}
+                />
               )}
             </div>
           </div>

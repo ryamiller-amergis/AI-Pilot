@@ -47,6 +47,7 @@ export const ScrumCalendar: React.FC<ScrumCalendarProps> = ({
   const [date, setDate] = useState(new Date());
   const [isDraggingFromPopup, setIsDraggingFromPopup] = useState(false);
   const [selectedAssignedTo, setSelectedAssignedTo] = useState<string>('');
+  const [selectedWorkItemType, setSelectedWorkItemType] = useState<string>('');
   const updateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const eventsRef = useRef<CalendarEvent[]>([]);
 
@@ -61,15 +62,29 @@ export const ScrumCalendar: React.FC<ScrumCalendarProps> = ({
     return Array.from(unique).sort();
   }, [workItems]);
 
+  // Get unique work item types
+  const workItemTypeOptions = useMemo(() => {
+    const unique = new Set<string>();
+    workItems.forEach(item => {
+      if (item.workItemType) {
+        unique.add(item.workItemType);
+      }
+    });
+    return Array.from(unique).sort();
+  }, [workItems]);
+
   // Filter work items based on selected filters
   const filteredWorkItems = useMemo(() => {
     return workItems.filter(item => {
       if (selectedAssignedTo && item.assignedTo !== selectedAssignedTo) {
         return false;
       }
+      if (selectedWorkItemType && item.workItemType !== selectedWorkItemType) {
+        return false;
+      }
       return true;
     });
-  }, [workItems, selectedAssignedTo]);
+  }, [workItems, selectedAssignedTo, selectedWorkItemType]);
 
   const events: CalendarEvent[] = useMemo(() => {
     return filteredWorkItems
@@ -287,6 +302,25 @@ export const ScrumCalendar: React.FC<ScrumCalendarProps> = ({
     <div className="scrum-calendar-container">
       <div className="calendar-filters">
         <div className="filter-group">
+          <label htmlFor="workItemType">Type:</label>
+          <select 
+            id="workItemType"
+            value={selectedWorkItemType} 
+            onChange={(e) => {
+              setSelectedWorkItemType(e.target.value);
+              onSelectItem(null as any);
+            }}
+            className="filter-select"
+          >
+            <option value="">All</option>
+            {workItemTypeOptions.map(type => (
+              <option key={type} value={type}>
+                {type === 'Product Backlog Item' ? 'Product Backlog Item' : type === 'Technical Backlog Item' ? 'Technical Backlog Item' : type}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="filter-group">
           <label htmlFor="assignedTo">Assigned To:</label>
           <select 
             id="assignedTo"
@@ -303,11 +337,12 @@ export const ScrumCalendar: React.FC<ScrumCalendarProps> = ({
             ))}
           </select>
         </div>
-        {selectedAssignedTo && (
+        {(selectedAssignedTo || selectedWorkItemType) && (
           <button 
             className="clear-filters-btn"
             onClick={() => {
               setSelectedAssignedTo('');
+              setSelectedWorkItemType('');
               onSelectItem(null as any); // Close details panel
             }}
           >
