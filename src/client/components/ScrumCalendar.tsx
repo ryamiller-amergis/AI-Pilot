@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { Calendar, dateFnsLocalizer, View, EventProps } from 'react-big-calendar';
 import withDragAndDrop from 'react-big-calendar/lib/addons/dragAndDrop';
-import { format, parse, startOfWeek, getDay, addMonths, subMonths } from 'date-fns';
+import { format, parse, startOfWeek, getDay } from 'date-fns';
 import enUSLocale from 'date-fns/locale/en-US';
 import { WorkItem } from '../types/workitem';
 import { getAssigneeColor, getEpicColor } from '../utils/assigneeColors';
@@ -45,7 +45,6 @@ export const ScrumCalendar: React.FC<ScrumCalendarProps> = ({
 }) => {
   const [view, setView] = useState<View>('month');
   const [date, setDate] = useState(new Date());
-  const [isDraggingFromPopup, setIsDraggingFromPopup] = useState(false);
   const [selectedAssignedTo, setSelectedAssignedTo] = useState<string>('');
   const [selectedWorkItemType, setSelectedWorkItemType] = useState<string>('');
   const updateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -169,7 +168,7 @@ export const ScrumCalendar: React.FC<ScrumCalendarProps> = ({
     onSelectItem(event.resource);
   }, [onSelectItem]);
 
-  const handleEventDrop = useCallback(({ event, start, end, allDay }: any) => {
+  const handleEventDrop = useCallback(({ event, start }: any) => {
     // Use the local date components to avoid timezone issues
     const year = start.getFullYear();
     const month = start.getMonth();
@@ -214,7 +213,7 @@ export const ScrumCalendar: React.FC<ScrumCalendarProps> = ({
     (window as any).__DRAGGED_CALENDAR_ITEM__ = event.resource;
   }, []);
 
-  const handleDropFromOutside = useCallback(({ start, end, allDay }: any) => {
+  const handleDropFromOutside = useCallback(({ start }: any) => {
     // This handles drops from external sources (unscheduled items or popup events)
     const draggedItem = (window as any).__DRAGGED_WORK_ITEM__ || (window as any).__DRAGGED_CALENDAR_ITEM__;
     
@@ -393,15 +392,15 @@ export const ScrumCalendar: React.FC<ScrumCalendarProps> = ({
       <DragAndDropCalendar
         localizer={localizer}
         events={events}
-        startAccessor="start"
-        endAccessor="end"
-        allDayAccessor="allDay"
+        startAccessor={(event: CalendarEvent) => event.start}
+        endAccessor={(event: CalendarEvent) => event.end}
+        allDayAccessor={(event: CalendarEvent) => event.allDay || false}
         style={{ height: 'calc(100vh - 60px)' }}
         view={view}
         onView={setView}
         date={date}
         onNavigate={setDate}
-        onSelectEvent={handleSelectEvent}
+        onSelectEvent={(event: any) => handleSelectEvent(event as CalendarEvent)}
         onEventDrop={handleEventDrop}
         onDropFromOutside={handleDropFromOutside}
         onDragStart={(args: any) => {
@@ -415,17 +414,15 @@ export const ScrumCalendar: React.FC<ScrumCalendarProps> = ({
         popup
         popupOffset={30}
         components={{
-          event: EventComponent,
+          event: (EventComponent as any),
           agenda: {
-            event: AgendaEvent,
+            event: (AgendaEvent as any),
           },
           eventContainerWrapper: (props: any) => {
-            // Check if we're in the popup overlay
-            const isPopup = props.slotMetrics === undefined;
             return <div {...props}>{props.children}</div>;
           },
         }}
-        eventPropGetter={(event: CalendarEvent) => {
+        eventPropGetter={() => {
           return {
             className: 'custom-event',
           };

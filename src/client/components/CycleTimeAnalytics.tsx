@@ -9,7 +9,7 @@ interface CycleTimeAnalyticsProps {
   areaPath: string;
 }
 
-interface CycleTimeData {
+export interface CycleTimeData {
   id: number;
   title: string;
   assignedTo?: string;
