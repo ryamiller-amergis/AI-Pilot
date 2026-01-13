@@ -36,18 +36,37 @@ This command will output JSON credentials like:
 }
 ```
 
-### 2. Add GitHub Secret
+### 2. Add GitHub Secrets
 
 1. Go to your GitHub repository
 2. Navigate to **Settings** → **Secrets and variables** → **Actions**
-3. Click **New repository secret**
-4. Name: `AZURE_CREDENTIALS`
-5. Value: Paste the entire JSON output from step 1
-6. Click **Add secret**
+3. Add the following secrets:
 
-### 3. Configure Environment Variables in Azure
+#### Required Secrets:
 
-The Terraform configuration already sets up the required environment variables (ADO_ORG, ADO_PAT, ADO_PROJECT) in the App Service. If you need to update them:
+**AZURE_CREDENTIALS**
+- Value: Paste the entire JSON output from step 1 above
+
+**ADO_ORG**
+- Value: Your Azure DevOps organization URL (e.g., `https://dev.azure.com/Amergis`)
+
+**ADO_PAT**
+- Value: Your Azure DevOps Personal Access Token with Work Items read permissions
+
+**ADO_PROJECT**
+- Value: Your Azure DevOps project name (e.g., `MaxView`)
+
+#### Required Variables:
+
+**VITE_TEAMS**
+- Value: Comma-separated team configurations (e.g., `MaxView|MaxView,MaxView|MaxView\MaxView Infra Team,MaxView|MaxView\Mobile - Team`)
+- Go to **Settings** → **Secrets and variables** → **Actions** → **Variables** tab
+
+> **Note:** Variables are used for non-sensitive configuration. Secrets are encrypted and used for credentials.
+
+### 3. Configure Environment Variables in Azure (Optional)
+
+The GitHub Actions workflow automatically sets the Azure DevOps environment variables during deployment. However, if you've already configured them via Terraform, they will remain as configured.
 
 ```bash
 az webapp config appsettings set \
@@ -71,7 +90,8 @@ The workflow runs on:
 5. **Create deployment package**: Prepares production-ready files
 6. **Login to Azure**: Authenticates using service principal
 7. **Deploy to Azure Web App**: Pushes the application to App Service
-8. **Logout**: Cleans up Azure session
+8. **Set App Service Configuration**: Configures Azure DevOps environment variables
+9. **Logout**: Cleans up Azure session
 
 ## Monitoring Deployments
 
