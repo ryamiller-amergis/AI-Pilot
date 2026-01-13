@@ -86,6 +86,7 @@ jobs:
             --resource-group ${{ env.RESOURCE_GROUP_NAME }} \
             --settings \
               SCM_DO_BUILD_DURING_DEPLOYMENT=false \
+              ENABLE_ORYX_BUILD=false \
               WEBSITE_RUN_FROM_PACKAGE=1 \
               NODE_ENV=production \
               ADO_ORG="${{ secrets.ADO_ORG }}" \
@@ -97,6 +98,17 @@ jobs:
               VITE_TEAMS="${{ vars.VITE_TEAMS }}" \
               PORT=8080 \
               POLL_INTERVAL=30
+
+      - name: Wait for SCM restart
+        run: sleep 45
+
+      - name: Verify build-related App Settings
+        run: |
+          az webapp config appsettings list \
+            --name ${{ env.APP_SERVICE_NAME }} \
+            --resource-group ${{ env.RESOURCE_GROUP_NAME }} \
+            --query "[?name=='SCM_DO_BUILD_DURING_DEPLOYMENT' || name=='ENABLE_ORYX_BUILD' || name=='WEBSITE_RUN_FROM_PACKAGE'].{name:name,value:value}" \
+            -o table
 
       - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v3
