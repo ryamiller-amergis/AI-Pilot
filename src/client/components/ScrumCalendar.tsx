@@ -131,8 +131,6 @@ export const ScrumCalendar: React.FC<ScrumCalendarProps> = ({
         if (eventId) {
           const event = eventsRef.current.find(ev => ev.id === parseInt(eventId));
           if (event) {
-            setIsDraggingFromPopup(true);
-            
             // Immediately remove all overlay popups when drag starts
             document.querySelectorAll('.rbc-overlay').forEach(overlay => {
               overlay.remove();
@@ -149,8 +147,6 @@ export const ScrumCalendar: React.FC<ScrumCalendarProps> = ({
     };
 
     const handlePopupDragEnd = () => {
-      setIsDraggingFromPopup(false);
-      
       (window as any).__DRAGGED_WORK_ITEM__ = null;
       (window as any).__DRAGGED_CALENDAR_ITEM__ = null;
     };
@@ -187,8 +183,7 @@ export const ScrumCalendar: React.FC<ScrumCalendarProps> = ({
       dropDate,
       newDate, 
       currentDate,
-      workItemId: event.resource.id,
-      allDay
+      workItemId: event.resource.id
     });
     
     // Only update if the date actually changed
@@ -392,9 +387,9 @@ export const ScrumCalendar: React.FC<ScrumCalendarProps> = ({
       <DragAndDropCalendar
         localizer={localizer}
         events={events}
-        startAccessor={(event: CalendarEvent) => event.start}
-        endAccessor={(event: CalendarEvent) => event.end}
-        allDayAccessor={(event: CalendarEvent) => event.allDay || false}
+        startAccessor={(event: any) => event.start}
+        endAccessor={(event: any) => event.end}
+        allDayAccessor={(event: any) => event.allDay || false}
         style={{ height: 'calc(100vh - 60px)' }}
         view={view}
         onView={setView}
