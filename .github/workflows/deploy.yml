@@ -79,18 +79,14 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Deploy to Azure Web App
-        uses: azure/webapps-deploy@v3
-        with:
-          app-name: ${{ env.APP_SERVICE_NAME }}
-          package: ./deploy
-        
       - name: Set App Service Configuration
         run: |
           az webapp config appsettings set \
             --name ${{ env.APP_SERVICE_NAME }} \
             --resource-group ${{ env.RESOURCE_GROUP_NAME }} \
             --settings \
+              SCM_DO_BUILD_DURING_DEPLOYMENT=false \
+              WEBSITE_RUN_FROM_PACKAGE=1 \
               NODE_ENV=production \
               ADO_ORG="${{ secrets.ADO_ORG }}" \
               ADO_PAT="${{ secrets.ADO_PAT }}" \
@@ -101,6 +97,12 @@ jobs:
               VITE_TEAMS="${{ vars.VITE_TEAMS }}" \
               PORT=8080 \
               POLL_INTERVAL=30
+
+      - name: Deploy to Azure Web App
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ env.APP_SERVICE_NAME }}
+          package: ./deploy
 
       - name: Azure logout
         run: az logout
