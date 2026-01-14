@@ -28,8 +28,8 @@ app.use(express.urlencoded({ extended: true }));
 // Session configuration
 app.use(session({
   secret: process.env.SESSION_SECRET || 'your-secret-key-change-this',
-  resave: false,
-  saveUninitialized: false,
+  resave: true, // Changed to true for file store
+  saveUninitialized: true, // Changed to true to save the session before OAuth flow
   name: 'connect.sid',
   cookie: {
     secure: process.env.NODE_ENV === 'production',
