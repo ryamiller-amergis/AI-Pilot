@@ -1,12 +1,14 @@
 import { WorkItem, DeveloperDueDateStats } from '../types/workitem';
 import './DevStats.css';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 
 interface DevStatsProps {
   workItems: WorkItem[];
   project: string;
   areaPath: string;
 }
+
+const LOADING_STATE_KEY = 'devStatsLoadingState';
 
 export const DevStats: React.FC<DevStatsProps> = ({ workItems, project, areaPath }) => {
   const [dueDateStats, setDueDateStats] = useState<DeveloperDueDateStats[]>([]);
@@ -33,59 +35,91 @@ export const DevStats: React.FC<DevStatsProps> = ({ workItems, project, areaPath
     return Array.from(devSet).sort();
   }, [workItems]);
 
+  // Poll sessionStorage to sync loading state across navigation
+  useEffect(() => {
+    const checkLoadingState = () => {
+      const savedState = sessionStorage.getItem(LOADING_STATE_KEY);
+      if (savedState) {
+        const { loading: isLoading } = JSON.parse(savedState);
+        if (isLoading && !loading) {
+          setLoading(true);
+          setShowNotification(true);
+          setNotificationMessage('Loading statistics in background...');
+        } else if (!isLoading && loading) {
+          setLoading(false);
+        }
+      } else if (loading) {
+        // If sessionStorage was cleared but we're still loading locally, sync it
+        setLoading(false);
+        setShowNotification(false);
+      }
+    };
+
+    // Check immediately on mount
+    checkLoadingState();
+
+    // Poll every 500ms to detect changes
+    const interval = setInterval(checkLoadingState, 500);
+
+    return () => clearInterval(interval);
+  }, [loading]);
+
   const fetchDueDateStats = async () => {
     setLoading(true);
     setError(null);
     setShowNotification(true);
     setNotificationMessage('Loading statistics in background...');
     
-    // Use setTimeout to ensure the loading state is shown before the async work begins
-    setTimeout(async () => {
-      try {
-        // Calculate date range based on time frame
-        let fromDate = '';
-        let toDate = new Date().toISOString().split('T')[0];
-        
-        if (timeFrame === 'custom') {
-          fromDate = customFromDate;
-          toDate = customToDate;
-        } else {
-          const daysBack = parseInt(timeFrame);
-          const from = new Date();
-          from.setDate(from.getDate() - daysBack);
-          fromDate = from.toISOString().split('T')[0];
-        }
-        
-        // Build query params
-        const params = new URLSearchParams();
-        if (fromDate) params.append('from', fromDate);
-        if (toDate) params.append('to', toDate);
-        if (selectedDeveloper !== 'all') params.append('developer', selectedDeveloper);
-        if (project) params.append('project', project);
-        if (areaPath) params.append('areaPath', areaPath);
-        
-        const response = await fetch(`/api/due-date-stats?${params.toString()}`);
-        if (!response.ok) {
-          throw new Error('Failed to fetch due date statistics');
-        }
-        const data = await response.json();
-        setDueDateStats(data);
-        setHasLoaded(true);
-        setNotificationMessage('Statistics loaded successfully!');
-        
-        // Auto-hide success notification after 3 seconds
-        setTimeout(() => {
-          setShowNotification(false);
-        }, 3000);
-      } catch (err) {
-        console.error('Error fetching due date stats:', err);
-        const errorMsg = err instanceof Error ? err.message : 'Unknown error';
-        setError(errorMsg);
-        setNotificationMessage(`Error: ${errorMsg}`);
-      } finally {
-        setLoading(false);
+    // Store loading state in sessionStorage
+    sessionStorage.setItem(LOADING_STATE_KEY, JSON.stringify({ loading: true, timestamp: Date.now() }));
+    
+    try {
+      // Calculate date range based on time frame
+      let fromDate = '';
+      let toDate = new Date().toISOString().split('T')[0];
+      
+      if (timeFrame === 'custom') {
+        fromDate = customFromDate;
+        toDate = customToDate;
+      } else {
+        const daysBack = parseInt(timeFrame);
+        const from = new Date();
+        from.setDate(from.getDate() - daysBack);
+        fromDate = from.toISOString().split('T')[0];
       }
-    }, 100);
+      
+      // Build query params
+      const params = new URLSearchParams();
+      if (fromDate) params.append('from', fromDate);
+      if (toDate) params.append('to', toDate);
+      if (selectedDeveloper !== 'all') params.append('developer', selectedDeveloper);
+      if (project) params.append('project', project);
+      if (areaPath) params.append('areaPath', areaPath);
+      
+      const response = await fetch(`/api/due-date-stats?${params.toString()}`);
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch due date statistics');
+      }
+      const data = await response.json();
+      setDueDateStats(data);
+      setHasLoaded(true);
+      setNotificationMessage('Statistics loaded successfully!');
+      
+      // Auto-hide success notification after 3 seconds
+      setTimeout(() => {
+        setShowNotification(false);
+      }, 3000);
+    } catch (err) {
+      console.error('Error fetching due date stats:', err);
+      const errorMsg = err instanceof Error ? err.message : 'Unknown error';
+      setError(errorMsg);
+      setNotificationMessage(`Error: ${errorMsg}`);
+    } finally {
+      setLoading(false);
+      // Clear loading state from sessionStorage
+      sessionStorage.removeItem(LOADING_STATE_KEY);
+    }
   };
 
   // Filter the results by developer if needed
