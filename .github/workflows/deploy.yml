@@ -81,6 +81,13 @@ jobs:
           print("AZURE_CREDENTIALS JSON looks OK (required keys present).")
           PY
 
+      - name: Extract Azure credentials for authentication
+        id: extract-creds
+        run: |
+          echo "AZURE_TENANT_ID=$(echo '${{ secrets.AZURE_CREDENTIALS }}' | jq -r '.tenantId')" >> $GITHUB_ENV
+          echo "AZURE_CLIENT_ID=$(echo '${{ secrets.AZURE_CREDENTIALS }}' | jq -r '.clientId')" >> $GITHUB_ENV
+          echo "AZURE_CLIENT_SECRET=$(echo '${{ secrets.AZURE_CREDENTIALS }}' | jq -r '.clientSecret')" >> $GITHUB_ENV
+
       - name: Login to Azure
         uses: azure/login@v2
         with:
@@ -103,6 +110,11 @@ jobs:
               VITE_ADO_ORG="amergis" \
               VITE_ADO_PROJECT="${{ secrets.ADO_PROJECT }}" \
               VITE_TEAMS="${{ vars.VITE_TEAMS }}" \
+              AZURE_TENANT_ID="${{ env.AZURE_TENANT_ID }}" \
+              AZURE_CLIENT_ID="${{ env.AZURE_CLIENT_ID }}" \
+              AZURE_CLIENT_SECRET="${{ env.AZURE_CLIENT_SECRET }}" \
+              AZURE_REDIRECT_URL="${{ secrets.AZURE_REDIRECT_URL }}" \
+              SESSION_SECRET="${{ secrets.SESSION_SECRET }}" \
               PORT=8080 \
               POLL_INTERVAL=30
 

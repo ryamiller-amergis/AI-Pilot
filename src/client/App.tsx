@@ -8,6 +8,7 @@ import { DetailsPanel } from './components/DetailsPanel';
 import { CycleTimeAnalytics } from './components/CycleTimeAnalytics';
 import { DevStats } from './components/DevStats';
 import { DueDateReasonModal } from './components/DueDateReasonModal';
+import { Login } from './components/Login';
 import { useWorkItems } from './hooks/useWorkItems';
 import { WorkItem } from './types/workitem';
 import './App.css';
@@ -20,6 +21,7 @@ interface DueDateChange {
 }
 
 function App() {
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
   const [currentDate] = useState(new Date());
   const [selectedItem, setSelectedItem] = useState<WorkItem | null>(null);
   const [currentView, setCurrentView] = useState<'calendar' | 'analytics'>('calendar');
@@ -28,8 +30,8 @@ function App() {
     const saved = localStorage.getItem('theme');
     return (saved as 'light' | 'dark') || 'dark';
   });
-  
-  // Parse available projects and area paths from environment
+
+  // Parse available projects and area paths from environment (must be before any conditional returns)
   const { availableProjects, availableAreaPaths } = useMemo(() => {
     const teamsEnv = import.meta.env.VITE_TEAMS || 'MaxView|MaxView';
     console.log('VITE_TEAMS raw value:', teamsEnv);
@@ -52,7 +54,7 @@ function App() {
       availableAreaPaths: Array.from(areaPaths).sort()
     };
   }, []);
-  
+
   // Selected project and area path (load from localStorage or defaults)
   const [selectedProject, setSelectedProject] = useState<string>(() => {
     const saved = localStorage.getItem('selectedProject');
@@ -68,26 +70,9 @@ function App() {
   const currentTeamRef = useRef({ project: selectedProject, areaPath: selectedAreaPath });
   const [isSaving, setIsSaving] = useState(false);
   
-  useEffect(() => {
-    localStorage.setItem('selectedProject', selectedProject);
-  }, [selectedProject]);
-  
-  useEffect(() => {
-    localStorage.setItem('selectedAreaPath', selectedAreaPath);
-  }, [selectedAreaPath]);
-  
   // Track original due dates and pending changes
   const originalDueDates = useRef<Map<number, string | undefined>>(new Map());
   const [pendingDueDateChange, setPendingDueDateChange] = useState<DueDateChange | null>(null);
-
-  useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme);
-    localStorage.setItem('theme', theme);
-  }, [theme]);
-
-  const toggleTheme = () => {
-    setTheme(prev => prev === 'light' ? 'dark' : 'light');
-  };
 
   const startDate = useMemo(() => startOfMonth(currentDate), [currentDate]);
   const endDate = useMemo(() => endOfMonth(currentDate), [currentDate]);
@@ -98,7 +83,32 @@ function App() {
     selectedProject,
     selectedAreaPath
   );
+
+  // Check authentication status on mount
+  useEffect(() => {
+    fetch('/auth/status', { credentials: 'include' })
+      .then(res => res.json())
+      .then(data => {
+        setIsAuthenticated(data.authenticated);
+      })
+      .catch(() => {
+        setIsAuthenticated(false);
+      });
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem('selectedProject', selectedProject);
+  }, [selectedProject]);
   
+  useEffect(() => {
+    localStorage.setItem('selectedAreaPath', selectedAreaPath);
+  }, [selectedAreaPath]);
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('theme', theme);
+  }, [theme]);
+
   // Handle team changes with loading state - must be after useWorkItems
   useEffect(() => {
     // Clear loading state only when data is loaded AND matches the selected team
@@ -108,32 +118,6 @@ function App() {
       setIsChangingTeam(false);
     }
   }, [isChangingTeam, loading, selectedProject, selectedAreaPath]);
-  
-  const isLoading = loading || isChangingTeam;
-
-  const handleFieldUpdate = async (id: number, field: string, value: any) => {
-    console.log(`Updating work item ${id} field ${field} to:`, value);
-    
-    setIsSaving(true);
-    const response = await fetch(`/api/workitems/${id}/field`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ field, value, project: selectedProject, areaPath: selectedAreaPath }),
-    });
-
-    if (!response.ok) {
-      console.error('Failed to update field');
-      setIsSaving(false);
-    } else {
-      // Trigger immediate refetch to get updated data
-      setTimeout(() => {
-        refetch?.();
-        setIsSaving(false);
-      }, 500); // Small delay to allow ADO to process
-    }
-  };
 
   // Store original due dates when work items are loaded
   useEffect(() => {
@@ -163,6 +147,45 @@ function App() {
       }
     }
   }, [workItems, selectedItem?.id]);
+
+  // Show login page if not authenticated (after all hooks are called)
+  if (isAuthenticated === null) {
+    return <div>Loading...</div>;
+  }
+
+  if (!isAuthenticated) {
+    return <Login />;
+  }
+
+  const isLoading = loading || isChangingTeam;
+
+  const toggleTheme = () => {
+    setTheme(prev => prev === 'light' ? 'dark' : 'light');
+  };
+
+  const handleFieldUpdate = async (id: number, field: string, value: any) => {
+    console.log(`Updating work item ${id} field ${field} to:`, value);
+    
+    setIsSaving(true);
+    const response = await fetch(`/api/workitems/${id}/field`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ field, value, project: selectedProject, areaPath: selectedAreaPath }),
+    });
+
+    if (!response.ok) {
+      console.error('Failed to update field');
+      setIsSaving(false);
+    } else {
+      // Trigger immediate refetch to get updated data
+      setTimeout(() => {
+        refetch?.();
+        setIsSaving(false);
+      }, 500); // Small delay to allow ADO to process
+    }
+  };
 
   const handleDueDateChange = (id: number, newDueDate: string | null, reason?: string) => {
     const workItem = workItems.find(item => item.id === id);

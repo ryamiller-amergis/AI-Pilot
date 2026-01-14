@@ -2,21 +2,49 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
+import session from 'express-session';
+import passport from 'passport';
 
 // Load environment variables BEFORE importing routes
 dotenv.config();
 
 import apiRoutes from './routes/api';
+import authRoutes from './routes/auth';
+import { ensureAuthenticated } from './middleware/auth';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: process.env.NODE_ENV === 'production' 
+    ? process.env.AZURE_REDIRECT_URL?.replace('/auth/callback', '') 
+    : 'http://localhost:5173',
+  credentials: true
+}));
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-// API routes
-app.use('/api', apiRoutes);
+// Session configuration
+app.use(session({
+  secret: process.env.SESSION_SECRET || 'your-secret-key-change-this',
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    secure: process.env.NODE_ENV === 'production',
+    maxAge: 24 * 60 * 60 * 1000 // 24 hours
+  }
+}));
+
+// Initialize Passport
+app.use(passport.initialize());
+app.use(passport.session());
+
+// Auth routes (no authentication required)
+app.use('/auth', authRoutes);
+
+// API routes (protected)
+app.use('/api', ensureAuthenticated, apiRoutes);
 
 // Serve static files in production
 if (process.env.NODE_ENV === 'production') {
