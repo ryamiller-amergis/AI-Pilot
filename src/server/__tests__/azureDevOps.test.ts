@@ -1,0 +1,561 @@
+import { AzureDevOpsService } from '../services/azureDevOps';
+import * as azdev from 'azure-devops-node-api';
+import { retryWithBackoff } from '../utils/retry';
+
+// Mock the retry utility
+jest.mock('../utils/retry', () => ({
+  retryWithBackoff: jest.fn((fn) => fn()),
+}));
+
+// Mock Azure DevOps Node API
+jest.mock('azure-devops-node-api');
+
+describe('AzureDevOpsService', () => {
+  let mockConnection: any;
+  let mockWitApi: any;
+  let mockCoreApi: any;
+  
+  const originalEnv = process.env;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    
+    // Set up environment variables
+    process.env = {
+      ...originalEnv,
+      ADO_ORG: 'https://dev.azure.com/test-org',
+      ADO_PAT: 'test-pat',
+      ADO_PROJECT: 'TestProject',
+      ADO_AREA_PATH: 'TestProject\\TestArea',
+    };
+
+    // Mock WIT API
+    mockWitApi = {
+      queryByWiql: jest.fn(),
+      getWorkItems: jest.fn(),
+      getRevisions: jest.fn(),
+      updateWorkItem: jest.fn(),
+    };
+
+    // Mock Core API
+    mockCoreApi = {
+      getProject: jest.fn(),
+    };
+
+    // Mock Connection
+    mockConnection = {
+      getWorkItemTrackingApi: jest.fn().mockResolvedValue(mockWitApi),
+      getCoreApi: jest.fn().mockResolvedValue(mockCoreApi),
+    };
+
+    // Mock WebApi constructor
+    (azdev.WebApi as any) = jest.fn().mockReturnValue(mockConnection);
+    (azdev.getPersonalAccessTokenHandler as any) = jest.fn();
+  });
+
+  afterEach(() => {
+    process.env = originalEnv;
+  });
+
+  describe('constructor', () => {
+    it('should create service with environment variables', () => {
+      const service = new AzureDevOpsService();
+      expect(azdev.WebApi).toHaveBeenCalledWith(
+        'https://dev.azure.com/test-org',
+        undefined,
+        expect.objectContaining({ socketTimeout: 120000 })
+      );
+    });
+
+    it('should allow override of project and area path', () => {
+      const service = new AzureDevOpsService('CustomProject', 'CustomProject\\CustomArea');
+      expect(service).toBeDefined();
+    });
+
+    it('should throw error when required env variables are missing', () => {
+      delete process.env.ADO_ORG;
+      expect(() => new AzureDevOpsService()).toThrow(
+        'Missing required environment variables: ADO_ORG, ADO_PAT, and project must be provided'
+      );
+    });
+  });
+
+  describe('getWorkItems', () => {
+    it('should fetch work items without date range', async () => {
+      const service = new AzureDevOpsService();
+      
+      mockWitApi.queryByWiql.mockResolvedValue({
+        workItems: [{ id: 1 }, { id: 2 }],
+      });
+
+      mockWitApi.getWorkItems.mockResolvedValue([
+        {
+          id: 1,
+          fields: {
+            'System.Id': 1,
+            'System.Title': 'Test Item 1',
+            'System.State': 'New',
+            'System.WorkItemType': 'Product Backlog Item',
+            'System.ChangedDate': '2024-01-01T00:00:00Z',
+            'System.CreatedDate': '2024-01-01T00:00:00Z',
+            'System.AreaPath': 'TestProject\\TestArea',
+            'System.IterationPath': 'TestProject\\Sprint 1',
+          },
+        },
+        {
+          id: 2,
+          fields: {
+            'System.Id': 2,
+            'System.Title': 'Test Item 2',
+            'System.State': 'In Progress',
+            'System.WorkItemType': 'Product Backlog Item',
+            'System.ChangedDate': '2024-01-02T00:00:00Z',
+            'System.CreatedDate': '2024-01-02T00:00:00Z',
+            'System.AreaPath': 'TestProject\\TestArea',
+            'System.IterationPath': 'TestProject\\Sprint 1',
+            'System.AssignedTo': { displayName: 'John Doe' },
+            'Microsoft.VSTS.Scheduling.DueDate': '2024-01-15T00:00:00Z',
+          },
+        },
+      ]);
+
+      const result = await service.getWorkItems();
+
+      expect(mockWitApi.queryByWiql).toHaveBeenCalledWith(
+        expect.objectContaining({
+          query: expect.stringContaining("'TestProject'"),
+        }),
+        { project: 'TestProject' }
+      );
+
+      expect(result).toHaveLength(2);
+      expect(result[0]).toMatchObject({
+        id: 1,
+        title: 'Test Item 1',
+        state: 'New',
+        workItemType: 'Product Backlog Item',
+      });
+    });
+
+    it('should fetch work items with date range filter', async () => {
+      const service = new AzureDevOpsService();
+      
+      mockWitApi.queryByWiql.mockResolvedValue({
+        workItems: [{ id: 1 }],
+      });
+
+      mockWitApi.getWorkItems.mockResolvedValue([
+        {
+          id: 1,
+          fields: {
+            'System.Id': 1,
+            'System.Title': 'Test Item',
+            'System.State': 'New',
+            'System.WorkItemType': 'Product Backlog Item',
+            'System.ChangedDate': '2024-01-01T00:00:00Z',
+            'System.CreatedDate': '2024-01-01T00:00:00Z',
+            'System.AreaPath': 'TestProject\\TestArea',
+            'System.IterationPath': 'TestProject\\Sprint 1',
+          },
+        },
+      ]);
+
+      await service.getWorkItems('2024-01-01', '2024-01-31');
+
+      expect(mockWitApi.queryByWiql).toHaveBeenCalledWith(
+        expect.objectContaining({
+          query: expect.stringContaining("'2024-01-01'"),
+        }),
+        { project: 'TestProject' }
+      );
+    });
+
+    it('should return empty array when no work items found', async () => {
+      const service = new AzureDevOpsService();
+      
+      mockWitApi.queryByWiql.mockResolvedValue({
+        workItems: [],
+      });
+
+      const result = await service.getWorkItems();
+      expect(result).toEqual([]);
+    });
+
+    it('should handle work items in batches of 200', async () => {
+      const service = new AzureDevOpsService();
+      
+      // Create 250 work item IDs
+      const workItems = Array.from({ length: 250 }, (_, i) => ({ id: i + 1 }));
+      
+      mockWitApi.queryByWiql.mockResolvedValue({ workItems });
+      mockWitApi.getWorkItems.mockResolvedValue([]);
+
+      await service.getWorkItems();
+
+      // Should be called twice (200 + 50)
+      expect(mockWitApi.getWorkItems).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe('calculateCycleTime', () => {
+    it('should calculate cycle time with valid state transitions', async () => {
+      const service = new AzureDevOpsService();
+      
+      mockWitApi.getRevisions.mockResolvedValue([
+        {
+          fields: {
+            'System.State': 'New',
+            'System.ChangedDate': '2024-01-01T00:00:00Z',
+          },
+        },
+        {
+          fields: {
+            'System.State': 'In Progress',
+            'System.ChangedDate': '2024-01-05T00:00:00Z',
+            'System.AssignedTo': { displayName: 'John Doe' },
+          },
+        },
+        {
+          fields: {
+            'System.State': 'Ready For Test',
+            'System.ChangedDate': '2024-01-10T00:00:00Z',
+            'System.AssignedTo': { displayName: 'Jane Tester' },
+          },
+        },
+        {
+          fields: {
+            'System.State': 'UAT - Ready For Test',
+            'System.ChangedDate': '2024-01-12T00:00:00Z',
+          },
+        },
+      ]);
+
+      const result = await service.calculateCycleTime(1);
+
+      expect(result).toBeDefined();
+      expect(result?.inProgressDate).toBe('2024-01-05');
+      expect(result?.qaReadyDate).toBe('2024-01-10');
+      expect(result?.uatReadyDate).toBe('2024-01-12');
+      expect(result?.cycleTimeDays).toBe(5);
+      expect(result?.qaCycleTimeDays).toBe(2);
+      expect(result?.assignedTo).toBe('John Doe');
+      expect(result?.qaAssignedTo).toBe('Jane Tester');
+    });
+
+    it('should return undefined when no revisions exist', async () => {
+      const service = new AzureDevOpsService();
+      
+      mockWitApi.getRevisions.mockResolvedValue([]);
+
+      const result = await service.calculateCycleTime(1);
+      expect(result).toBeUndefined();
+    });
+
+    it('should return undefined on error', async () => {
+      const service = new AzureDevOpsService();
+      
+      mockWitApi.getRevisions.mockRejectedValue(new Error('API Error'));
+
+      const result = await service.calculateCycleTime(1);
+      expect(result).toBeUndefined();
+    });
+  });
+
+  describe('updateDueDate', () => {
+    it('should set due date with proper ISO format', async () => {
+      const service = new AzureDevOpsService();
+
+      await service.updateDueDate(1, '2024-03-15');
+
+      expect(mockWitApi.updateWorkItem).toHaveBeenCalledWith(
+        {},
+        expect.arrayContaining([
+          expect.objectContaining({
+            op: 'add',
+            path: '/fields/Microsoft.VSTS.Scheduling.DueDate',
+            value: expect.stringMatching(/2024-03-15/),
+          }),
+        ]),
+        1,
+        'TestProject'
+      );
+    });
+
+    it('should remove due date when null is provided', async () => {
+      const service = new AzureDevOpsService();
+
+      await service.updateDueDate(1, null);
+
+      expect(mockWitApi.updateWorkItem).toHaveBeenCalledWith(
+        {},
+        expect.arrayContaining([
+          expect.objectContaining({
+            op: 'remove',
+            path: '/fields/Microsoft.VSTS.Scheduling.DueDate',
+          }),
+        ]),
+        1,
+        'TestProject'
+      );
+    });
+
+    it('should include reason in history and custom field when provided', async () => {
+      const service = new AzureDevOpsService();
+
+      await service.updateDueDate(1, '2024-03-15', 'Client request');
+
+      expect(mockWitApi.updateWorkItem).toHaveBeenCalledWith(
+        {},
+        expect.arrayContaining([
+          expect.objectContaining({
+            op: 'add',
+            path: '/fields/Custom.DueDateMovementReasons',
+            value: 'Client request',
+          }),
+          expect.objectContaining({
+            op: 'add',
+            path: '/fields/System.History',
+            value: 'Due date change reason: Client request',
+          }),
+        ]),
+        1,
+        'TestProject'
+      );
+    });
+  });
+
+  describe('updateWorkItemField', () => {
+    it('should update field with friendly name mapping', async () => {
+      const service = new AzureDevOpsService();
+
+      await service.updateWorkItemField(1, 'state', 'In Progress');
+
+      expect(mockWitApi.updateWorkItem).toHaveBeenCalledWith(
+        {},
+        expect.arrayContaining([
+          expect.objectContaining({
+            op: 'add',
+            path: '/fields/System.State',
+            value: 'In Progress',
+          }),
+        ]),
+        1,
+        'TestProject'
+      );
+    });
+
+    it('should remove field when value is null', async () => {
+      const service = new AzureDevOpsService();
+
+      await service.updateWorkItemField(1, 'assignedTo', null);
+
+      expect(mockWitApi.updateWorkItem).toHaveBeenCalledWith(
+        {},
+        expect.arrayContaining([
+          expect.objectContaining({
+            op: 'remove',
+            path: '/fields/System.AssignedTo',
+          }),
+        ]),
+        1,
+        'TestProject'
+      );
+    });
+
+    it('should use custom field name directly if not in mapping', async () => {
+      const service = new AzureDevOpsService();
+
+      await service.updateWorkItemField(1, 'Custom.MyField', 'test value');
+
+      expect(mockWitApi.updateWorkItem).toHaveBeenCalledWith(
+        {},
+        expect.arrayContaining([
+          expect.objectContaining({
+            op: 'add',
+            path: '/fields/Custom.MyField',
+            value: 'test value',
+          }),
+        ]),
+        1,
+        'TestProject'
+      );
+    });
+  });
+
+  describe('healthCheck', () => {
+    it('should return true when connection is healthy', async () => {
+      const service = new AzureDevOpsService();
+      
+      mockCoreApi.getProject.mockResolvedValue({ name: 'TestProject' });
+
+      const result = await service.healthCheck();
+      expect(result).toBe(true);
+      expect(mockCoreApi.getProject).toHaveBeenCalledWith('TestProject');
+    });
+
+    it('should return false when connection fails', async () => {
+      const service = new AzureDevOpsService();
+      
+      mockCoreApi.getProject.mockRejectedValue(new Error('Connection failed'));
+
+      const result = await service.healthCheck();
+      expect(result).toBe(false);
+    });
+  });
+
+  describe('calculateCycleTimeForItems', () => {
+    it('should calculate cycle time for multiple items in batches', async () => {
+      const service = new AzureDevOpsService();
+      
+      mockWitApi.getRevisions.mockResolvedValue([
+        {
+          fields: {
+            'System.State': 'In Progress',
+            'System.ChangedDate': '2024-01-01T00:00:00Z',
+          },
+        },
+        {
+          fields: {
+            'System.State': 'Ready For Test',
+            'System.ChangedDate': '2024-01-05T00:00:00Z',
+          },
+        },
+      ]);
+
+      const result = await service.calculateCycleTimeForItems([1, 2, 3]);
+
+      expect(result).toBeDefined();
+      expect(Object.keys(result)).toHaveLength(3);
+    });
+
+    it('should handle items without cycle time data', async () => {
+      const service = new AzureDevOpsService();
+      
+      mockWitApi.getRevisions.mockResolvedValue([]);
+
+      const result = await service.calculateCycleTimeForItems([1]);
+
+      expect(result).toEqual({});
+    });
+  });
+
+  describe('getDueDateChangeHistory', () => {
+    it('should extract due date changes from revisions', async () => {
+      const service = new AzureDevOpsService();
+      
+      mockWitApi.getRevisions.mockResolvedValue([
+        {
+          fields: {
+            'Microsoft.VSTS.Scheduling.DueDate': '2024-01-10T00:00:00Z',
+            'System.ChangedBy': { displayName: 'John Doe' },
+            'System.ChangedDate': '2024-01-01T00:00:00Z',
+          },
+        },
+        {
+          fields: {
+            'Microsoft.VSTS.Scheduling.DueDate': '2024-01-15T00:00:00Z',
+            'System.ChangedBy': { displayName: 'Jane Smith' },
+            'System.ChangedDate': '2024-01-02T00:00:00Z',
+            'System.History': 'Due date change reason: Client request',
+          },
+        },
+      ]);
+
+      const result = await service.getDueDateChangeHistory([1]);
+
+      expect(result).toHaveLength(2);
+      // First change: undefined -> 2024-01-10
+      expect(result[0]).toMatchObject({
+        changedBy: 'John Doe',
+        oldDueDate: undefined,
+        newDueDate: '2024-01-10',
+      });
+      // Second change: 2024-01-10 -> 2024-01-15
+      expect(result[1]).toMatchObject({
+        changedBy: 'Jane Smith',
+        oldDueDate: '2024-01-10',
+        newDueDate: '2024-01-15',
+        reason: 'Client request',
+      });
+    });
+
+    it('should handle items with no revisions', async () => {
+      const service = new AzureDevOpsService();
+      
+      mockWitApi.getRevisions.mockResolvedValue([]);
+
+      const result = await service.getDueDateChangeHistory([1]);
+
+      expect(result).toEqual([]);
+    });
+
+    it('should return empty array on error', async () => {
+      const service = new AzureDevOpsService();
+      
+      mockWitApi.getRevisions.mockRejectedValue(new Error('API Error'));
+
+      const result = await service.getDueDateChangeHistory([1]);
+
+      expect(result).toEqual([]);
+    });
+  });
+
+  describe('getEpicChildren', () => {
+    it('should fetch child PBIs from epic hierarchy', async () => {
+      const service = new AzureDevOpsService();
+      
+      mockWitApi.queryByWiql.mockResolvedValue({
+        workItemRelations: [
+          { target: { id: 100 } }, // Epic itself
+          { target: { id: 101 } }, // Feature
+          { target: { id: 102 } }, // PBI
+        ],
+      });
+
+      mockWitApi.getWorkItems.mockResolvedValue([
+        {
+          id: 101,
+          fields: {
+            'System.Id': 101,
+            'System.Title': 'Feature',
+            'System.WorkItemType': 'Feature',
+            'System.State': 'New',
+            'System.ChangedDate': '2024-01-01T00:00:00Z',
+            'System.CreatedDate': '2024-01-01T00:00:00Z',
+            'System.AreaPath': 'TestProject\\TestArea',
+            'System.IterationPath': 'TestProject\\Sprint 1',
+          },
+        },
+        {
+          id: 102,
+          fields: {
+            'System.Id': 102,
+            'System.Title': 'PBI',
+            'System.WorkItemType': 'Product Backlog Item',
+            'System.State': 'New',
+            'System.ChangedDate': '2024-01-01T00:00:00Z',
+            'System.CreatedDate': '2024-01-01T00:00:00Z',
+            'System.AreaPath': 'TestProject\\TestArea',
+            'System.IterationPath': 'TestProject\\Sprint 1',
+          },
+        },
+      ]);
+
+      const result = await service.getEpicChildren(100);
+
+      expect(result).toHaveLength(1); // Only PBI, Feature filtered out
+      expect(result[0].workItemType).toBe('Product Backlog Item');
+    });
+
+    it('should return empty array when epic has no children', async () => {
+      const service = new AzureDevOpsService();
+      
+      mockWitApi.queryByWiql.mockResolvedValue({
+        workItemRelations: [],
+      });
+
+      const result = await service.getEpicChildren(100);
+      expect(result).toEqual([]);
+    });
+  });
+});
