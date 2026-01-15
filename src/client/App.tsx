@@ -77,14 +77,7 @@ function App() {
   const startDate = useMemo(() => startOfMonth(currentDate), [currentDate]);
   const endDate = useMemo(() => endOfMonth(currentDate), [currentDate]);
 
-  const { workItems, loading, error, updateDueDate, refetch } = useWorkItems(
-    startDate,
-    endDate,
-    selectedProject,
-    selectedAreaPath
-  );
-
-  // Check authentication status on mount
+  // Check authentication status on mount FIRST
   useEffect(() => {
     fetch('/auth/status', { credentials: 'include' })
       .then(res => res.json())
@@ -95,6 +88,15 @@ function App() {
         setIsAuthenticated(false);
       });
   }, []);
+
+  // Only fetch work items if authenticated
+  const { workItems, loading, error, updateDueDate, refetch } = useWorkItems(
+    startDate,
+    endDate,
+    selectedProject,
+    selectedAreaPath,
+    isAuthenticated === true // Only fetch if authenticated
+  );
 
   useEffect(() => {
     localStorage.setItem('selectedProject', selectedProject);
@@ -162,7 +164,20 @@ function App() {
   const toggleTheme = () => {
     setTheme(prev => prev === 'light' ? 'dark' : 'light');
   };
-
+  const handleLogout = async () => {
+    try {
+      // Call the logout endpoint which will destroy the session
+      await fetch('/auth/logout', {
+        credentials: 'include'
+      });
+      // Redirect to login page
+      window.location.href = '/';
+    } catch (error) {
+      console.error('Logout error:', error);
+      // Even if there's an error, redirect to home which will show login
+      window.location.href = '/';
+    }
+  };
   const handleFieldUpdate = async (id: number, field: string, value: any) => {
     console.log(`Updating work item ${id} field ${field} to:`, value);
     
@@ -327,6 +342,9 @@ function App() {
             </div>
             <button className="theme-toggle" onClick={toggleTheme} title={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}>
               {theme === 'light' ? 'Dark' : 'Light'}
+            </button>
+            <button className="sign-out-btn" onClick={handleLogout} title="Sign out">
+              Sign Out
             </button>
           </div>
         </div>

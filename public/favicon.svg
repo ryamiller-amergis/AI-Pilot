@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Background circle -->
+  <circle cx="32" cy="32" r="32" fill="#1a1a1a"/>
+  
+  <!-- Sprint cycle arrow (circular arrow representing iterative sprints) -->
+  <path d="M 32 12 A 16 16 0 1 1 16 32" 
+        stroke="#ef4444" 
+        stroke-width="4" 
+        fill="none" 
+        stroke-linecap="round"/>
+  
+  <!-- Arrow head -->
+  <path d="M 16 32 L 12 28 L 16 24 L 20 28 Z" 
+        fill="#ef4444"/>
+  
+  <!-- Sprint/Task cards -->
+  <rect x="28" y="26" width="12" height="8" 
+        fill="#ffffff" 
+        rx="1"/>
+  <rect x="28" y="36" width="12" height="8" 
+        fill="#9ca3af" 
+        rx="1"/>
+  
+  <!-- Large 'S' for Scrum -->
+  <path d="M 52 18 Q 52 14 48 14 Q 44 14 44 18 Q 44 21 48 22 Q 52 23 52 26 Q 52 30 48 30 Q 44 30 44 26" 
+        stroke="#ffffff" 
+        stroke-width="2.5" 
+        fill="none" 
+        stroke-linecap="round"/>
+</svg>

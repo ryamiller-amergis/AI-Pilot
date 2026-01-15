@@ -5,7 +5,13 @@ import { workItemService } from '../services/workItemService';
 const POLL_INTERVAL =
   (parseInt(import.meta.env.VITE_POLL_INTERVAL || '30') || 30) * 1000;
 
-export function useWorkItems(startDate: Date, endDate: Date, project: string, areaPath: string) {
+export function useWorkItems(
+  startDate: Date, 
+  endDate: Date, 
+  project: string, 
+  areaPath: string,
+  enabled: boolean = true // Add enabled flag
+) {
   const [workItems, setWorkItems] = useState<WorkItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -22,6 +28,12 @@ export function useWorkItems(startDate: Date, endDate: Date, project: string, ar
   };
 
   useEffect(() => {
+    // Don't fetch if not enabled (not authenticated)
+    if (!enabled) {
+      setLoading(false);
+      return;
+    }
+
     // Update current request ref when team changes
     currentRequestRef.current = { project, areaPath };
     setLoading(true);
@@ -76,7 +88,7 @@ export function useWorkItems(startDate: Date, endDate: Date, project: string, ar
     fetchWorkItems();
     const interval = setInterval(fetchWorkItems, POLL_INTERVAL);
     return () => clearInterval(interval);
-  }, [startDate, endDate, project, areaPath]);
+  }, [startDate, endDate, project, areaPath, enabled]); // Add enabled to dependencies
 
   const updateDueDate = useCallback(async (id: number, dueDate: string | null, reason?: string) => {
     console.log(`Updating item ${id} to date ${dueDate} with reason: ${reason || 'none'}`);

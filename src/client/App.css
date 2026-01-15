@@ -304,6 +304,33 @@ body {
   transform: translateY(0);
 }
 
+.sign-out-btn {
+  padding: 10px 20px;
+  border-radius: 20px;
+  border: 2px solid var(--border-color);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px var(--shadow-sm);
+}
+
+.sign-out-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px var(--shadow-md);
+  border-color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.sign-out-btn:active {
+  transform: translateY(0);
+}
+
 .analytics-view {
   display: flex;
   flex-direction: column;

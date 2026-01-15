@@ -11,7 +11,9 @@ export const workItemService = {
     if (areaPath) params.append('areaPath', areaPath);
 
     const url = `${API_BASE}/workitems${params.toString() ? '?' + params.toString() : ''}`;
-    const response = await fetch(url);
+    const response = await fetch(url, {
+      credentials: 'include'
+    });
 
     if (!response.ok) {
       throw new Error('Failed to fetch work items');
@@ -23,6 +25,7 @@ export const workItemService = {
   async updateDueDate(id: number, dueDate: string | null, reason?: string, project?: string, areaPath?: string): Promise<void> {
     const response = await fetch(`${API_BASE}/workitems/${id}/due-date`, {
       method: 'PATCH',
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
       },

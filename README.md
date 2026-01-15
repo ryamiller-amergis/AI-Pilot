@@ -130,6 +130,36 @@ Health check endpoint.
 - All API calls are proxied through the backend
 - CORS is configured for development
 
+## Icon Explaination
+
+1. Circular Red Arrow (Sprint Cycle)
+
+The continuous loop symbolizes the iterative nature of Scrum sprints
+Sprints are time-boxed cycles that repeat - plan, develop, review, repeat
+The arrow shows forward momentum and progress
+Red color (#ef4444) represents energy, action, and urgency - core to agile delivery
+
+2. Arrow Head Pointing Inward
+
+Represents the sprint starting fresh after each cycle
+Continuous improvement and refinement
+The feedback loop returning to planning
+
+3. White & Gray Task Cards
+
+Symbolize Product Backlog Items (PBIs) or user stories
+White card = high priority/current sprint work
+Gray card = lower priority/future sprint items
+Stacked vertically like cards on a Scrum board (To Do, In Progress, Done)
+
+4. Stylized 'S' Curve
+
+Stands for "Scrum" obviously
+The flowing, continuous line represents transparency and collaboration
+Integrated into the cycle, not separate - Scrum is part of the process, not just a methodology overlay
+
+The overall composition creates a sense of movement, iteration, and organized workflow - the essence of Scrum methodology where teams work in focused sprints, continuously deliver value, and improve incrementally.
+
 ## License
 
 MIT
