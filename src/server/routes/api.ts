@@ -1,6 +1,6 @@
 import express, { Request, Response } from 'express';
 import { AzureDevOpsService } from '../services/azureDevOps';
-import { WorkItemsQuery, UpdateDueDateRequest } from '../types/workitem';
+import { WorkItemsQuery, UpdateDueDateRequest, DeveloperDueDateStats } from '../types/workitem';
 
 const router = express.Router();
 
@@ -101,13 +101,107 @@ router.get('/health', async (req: Request, res: Response) => {
 // GET /api/due-date-stats - Get due date change statistics by developer
 router.get('/due-date-stats', async (req: Request, res: Response) => {
   try {
-    const { from, to, developer, project, areaPath } = req.query as WorkItemsQuery & { developer?: string; project?: string; areaPath?: string };
-    const adoService = new AzureDevOpsService(project, areaPath);
-    const stats = await adoService.getDueDateStatsByDeveloper(from, to, developer);
+    const { from, to, developer, project } = req.query as WorkItemsQuery & { developer?: string; project?: string };
+    
+    // Define specific teams to query for developer statistics
+    // Using project-level query for now to ensure we get data
+    const devStatsTeams = [
+      { project: 'MaxView', areaPath: '' } // Empty to get all from project
+    ];
+    
+    // Fetch stats from all teams and aggregate
+    const allStats: DeveloperDueDateStats[] = [];
+    
+    for (const team of devStatsTeams) {
+      try {
+        const adoService = new AzureDevOpsService(team.project, team.areaPath);
+        const teamStats = await adoService.getDueDateStatsByDeveloper(from, to, developer);
+        allStats.push(...teamStats);
+      } catch (error) {
+        console.error(`Error fetching stats for ${team.project}/${team.areaPath}:`, error);
+        // Continue with other teams even if one fails
+      }
+    }
+    
+    // Aggregate stats by developer
+    const aggregatedStats = new Map<string, DeveloperDueDateStats>();
+    
+    for (const stat of allStats) {
+      if (aggregatedStats.has(stat.developer)) {
+        const existing = aggregatedStats.get(stat.developer)!;
+        existing.totalChanges += stat.totalChanges;
+        
+        // Merge reason breakdown
+        for (const [reason, count] of Object.entries(stat.reasonBreakdown)) {
+          existing.reasonBreakdown[reason] = (existing.reasonBreakdown[reason] || 0) + count;
+        }
+      } else {
+        aggregatedStats.set(stat.developer, {
+          developer: stat.developer,
+          totalChanges: stat.totalChanges,
+          reasonBreakdown: { ...stat.reasonBreakdown }
+        });
+      }
+    }
+    
+    const stats = Array.from(aggregatedStats.values());
+    console.log(`Returning ${stats.length} developer stats:`, stats.map(s => s.developer));
     res.json(stats);
   } catch (error: any) {
     console.error('Error fetching due date stats:', error);
     res.status(500).json({ error: 'Failed to fetch due date statistics' });
+  }
+});
+
+// GET /api/team-members - Get list of members from a specific team
+router.get('/team-members', async (req: Request, res: Response) => {
+  try {
+    const { project, teamName } = req.query as { project?: string; teamName?: string };
+    
+    if (!project || !teamName) {
+      return res.status(400).json({ error: 'project and teamName are required' });
+    }
+    
+    const adoService = new AzureDevOpsService(project);
+    const members = await adoService.getTeamMembers(teamName);
+    
+    console.log(`Returning ${members.length} members for ${project}/${teamName}`);
+    res.json(members);
+  } catch (error: any) {
+    console.error('Error fetching team members:', error);
+    res.status(500).json({ error: 'Failed to fetch team members' });
+  }
+});
+
+// GET /api/dev-team-members - Get list of developers from dev teams
+router.get('/dev-team-members', async (req: Request, res: Response) => {
+  try {
+    // Define specific teams to query for developer list
+    const devTeams = [
+      { project: 'MaxView', teamName: 'MaxView - Dev' },
+      { project: 'MaxView', teamName: 'MaxView Infra Team' },
+      { project: 'MaxView', teamName: 'Mobile - Dev' }
+    ];
+    
+    const allMembers = new Set<string>();
+    
+    for (const team of devTeams) {
+      try {
+        const adoService = new AzureDevOpsService(team.project);
+        const members = await adoService.getTeamMembers(team.teamName);
+        members.forEach(member => allMembers.add(member));
+      } catch (error) {
+        console.error(`Error fetching members for ${team.project}/${team.teamName}:`, error);
+        // Continue with other teams even if one fails
+      }
+    }
+    
+    const membersList = Array.from(allMembers).sort();
+    console.log(`Returning ${membersList.length} team members from dev teams`);
+    res.json(membersList);
+  } catch (error: any) {
+    console.error('Error fetching team members:', error);
+    res.status(500).json({ error: 'Failed to fetch team members' });
   }
 });
 

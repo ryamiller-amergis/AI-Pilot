@@ -445,10 +445,14 @@ export class AzureDevOpsService {
 
   async getDueDateStatsByDeveloper(from?: string, to?: string, developerFilter?: string): Promise<DeveloperDueDateStats[]> {
     try {
-      console.log('Fetching work items for due date stats...');
+      console.log('Fetching work items for due date stats...', {
+        project: this.project,
+        areaPath: this.areaPath,
+        from,
+        to
+      });
       
-      // For stats, we want work items changed in the time range, not items with due dates in the range
-      // This ensures we catch recent due date changes
+      // For stats, we want work items that have been in progress at some point
       const witApi = await this.connection.getWorkItemTrackingApi();
       
       let wiql = `SELECT [System.Id] FROM WorkItems WHERE [System.TeamProject] = '${this.project}' AND [System.WorkItemType] = 'Product Backlog Item'`;
@@ -457,12 +461,11 @@ export class AzureDevOpsService {
         wiql += ` AND [System.AreaPath] UNDER '${this.areaPath}'`;
       }
 
-      // Query by CHANGED DATE to get recently modified items
-      if (from && to) {
-        wiql += ` AND [System.ChangedDate] >= '${from}' AND [System.ChangedDate] <= '${to}'`;
-      }
-
+      // Don't restrict by date in the initial query - get all PBIs, then filter by revision dates
+      // This ensures we don't miss items that had due date changes but weren't recently modified
       wiql += ' ORDER BY [System.ChangedDate] DESC';
+      
+      console.log('Executing WIQL:', wiql);
       
       const queryResult = await witApi.queryByWiql(
         { query: wiql },
@@ -470,12 +473,12 @@ export class AzureDevOpsService {
       );
 
       if (!queryResult.workItems || queryResult.workItems.length === 0) {
-        console.log('No work items found in date range');
+        console.log('No work items found for area path');
         return [];
       }
 
       const ids = queryResult.workItems.map((wi) => wi.id!);
-      console.log(`Found ${ids.length} work items changed in date range`);
+      console.log(`Found ${ids.length} work items in area path`);
       
       // OPTIMIZATION: Limit to most recent work items to avoid processing too many
       const maxItems = 150;
@@ -651,5 +654,28 @@ export class AzureDevOpsService {
 
       return pbiItems;
     });
+  }
+
+  async getTeamMembers(teamName: string): Promise<string[]> {
+    try {
+      const coreApi = await this.connection.getCoreApi();
+      
+      // Get team members
+      const teamMembers = await coreApi.getTeamMembersWithExtendedProperties(
+        this.project,
+        teamName
+      );
+      
+      // Extract display names
+      const memberNames = teamMembers
+        .map(member => member.identity?.displayName)
+        .filter((name): name is string => !!name)
+        .sort();
+      
+      return memberNames;
+    } catch (error) {
+      console.error(`Error fetching team members for ${teamName}:`, error);
+      return [];
+    }
   }
 }

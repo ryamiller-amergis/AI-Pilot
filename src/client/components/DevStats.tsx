@@ -45,16 +45,68 @@ export const DevStats: React.FC<DevStatsProps> = ({ workItems, project, areaPath
     return savedFilters ? JSON.parse(savedFilters).customToDate : '';
   });
 
-  // Get unique developers from work items
+  // Get unique developers from stats data (not local workItems)
   const developers = useMemo(() => {
+    if (dueDateStats.length === 0) return [];
     const devSet = new Set<string>();
-    workItems.forEach(item => {
-      if (item.assignedTo) {
-        devSet.add(item.assignedTo);
-      }
+    dueDateStats.forEach(stat => {
+      devSet.add(stat.developer);
     });
-    return Array.from(devSet).sort();
-  }, [workItems]);
+    const devList = Array.from(devSet).sort();
+    console.log('DevStats - Developers from stats:', devList);
+    console.log('DevStats - Stats data:', dueDateStats);
+    return devList;
+  }, [dueDateStats]);
+
+  // Team selection state
+  const [selectedTeam, setSelectedTeam] = useState<string>('all');
+  const [teamMembers, setTeamMembers] = useState<string[]>([]);
+  const [loadingMembers, setLoadingMembers] = useState(false);
+
+  // Available teams
+  const teams = [
+    { id: 'all', name: 'All Teams' },
+    { id: 'maxview-dev', name: 'MaxView - Dev', teamName: 'MaxView - Dev', project: 'MaxView' },
+    { id: 'maxview-infra', name: 'MaxView Infra Team', teamName: 'MaxView Infra Team', project: 'MaxView' },
+    { id: 'mobile-dev', name: 'Mobile - Dev', teamName: 'Mobile - Dev', project: 'MaxView' }
+  ];
+
+  // Fetch team members when team selection changes
+  useEffect(() => {
+    const fetchTeamMembers = async () => {
+      if (selectedTeam === 'all') {
+        setTeamMembers([]);
+        return;
+      }
+
+      const team = teams.find(t => t.id === selectedTeam);
+      if (!team || !('teamName' in team)) return;
+
+      try {
+        setLoadingMembers(true);
+        const params = new URLSearchParams();
+        params.append('project', team.project);
+        params.append('teamName', team.teamName);
+        
+        const response = await fetch(`/api/team-members?${params.toString()}`, {
+          credentials: 'include'
+        });
+        
+        if (response.ok) {
+          const members = await response.json();
+          console.log(`DevStats - Loaded ${members.length} members for ${team.name}:`, members);
+          setTeamMembers(members);
+        }
+      } catch (error) {
+        console.error('Error fetching team members:', error);
+        setTeamMembers([]);
+      } finally {
+        setLoadingMembers(false);
+      }
+    };
+
+    fetchTeamMembers();
+  }, [selectedTeam]); // Run when team selection changes
 
   // Poll sessionStorage to sync loading state and data across navigation
   useEffect(() => {
@@ -148,15 +200,21 @@ export const DevStats: React.FC<DevStatsProps> = ({ workItems, project, areaPath
       if (fromDate) params.append('from', fromDate);
       if (toDate) params.append('to', toDate);
       if (selectedDeveloper !== 'all') params.append('developer', selectedDeveloper);
-      if (project) params.append('project', project);
-      if (areaPath) params.append('areaPath', areaPath);
+      // Note: project and areaPath are not sent - stats pull from hardcoded teams on server
       
-      const response = await fetch(`/api/due-date-stats?${params.toString()}`);
+      const response = await fetch(`/api/due-date-stats?${params.toString()}`, {
+        credentials: 'include'
+      });
       
       if (!response.ok) {
         throw new Error('Failed to fetch due date statistics');
       }
       const data = await response.json();
+      
+      console.log('DevStats - API returned data:', {
+        count: data.length,
+        developers: data.map((s: any) => s.developer)
+      });
       
       // Save to sessionStorage immediately (works even if component unmounts)
       sessionStorage.setItem(DATA_STATE_KEY, JSON.stringify({ 
@@ -185,11 +243,32 @@ export const DevStats: React.FC<DevStatsProps> = ({ workItems, project, areaPath
     }
   };
 
-  // Filter the results by developer if needed
+  // Filter the results by developer if needed, and by team if selected
   const filteredStats = useMemo(() => {
-    if (selectedDeveloper === 'all') return dueDateStats;
-    return dueDateStats.filter(stat => stat.developer === selectedDeveloper);
-  }, [dueDateStats, selectedDeveloper]);
+    let stats = dueDateStats;
+    
+    console.log('DevStats - Filtering:', {
+      totalStats: dueDateStats.length,
+      selectedTeam,
+      teamMembersCount: teamMembers.length,
+      selectedDeveloper
+    });
+    
+    // Filter by team members if a specific team is selected
+    if (selectedTeam !== 'all' && teamMembers.length > 0) {
+      stats = stats.filter(stat => teamMembers.includes(stat.developer));
+      console.log('DevStats - After team filter:', stats.length);
+    }
+    
+    // Further filter by specific developer if selected
+    if (selectedDeveloper !== 'all') {
+      stats = stats.filter(stat => stat.developer === selectedDeveloper);
+      console.log('DevStats - After developer filter:', stats.length);
+    }
+    
+    console.log('DevStats - Final filtered stats:', stats.length);
+    return stats;
+  }, [dueDateStats, selectedDeveloper, selectedTeam, teamMembers]);
 
   return (
     <div className="dev-stats-container">
@@ -201,15 +280,35 @@ export const DevStats: React.FC<DevStatsProps> = ({ workItems, project, areaPath
         <div className="filter-controls">
           <div className="filter-row">
             <div className="filter-group">
+              <label htmlFor="team-filter">Team:</label>
+              <select 
+                id="team-filter"
+                value={selectedTeam} 
+                onChange={(e) => {
+                  setSelectedTeam(e.target.value);
+                  setSelectedDeveloper('all'); // Reset developer filter when team changes
+                }}
+                className="filter-select"
+              >
+                {teams.map(team => (
+                  <option key={team.id} value={team.id}>{team.name}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="filter-group">
               <label htmlFor="developer-filter">Developer:</label>
               <select 
                 id="developer-filter"
                 value={selectedDeveloper} 
                 onChange={(e) => setSelectedDeveloper(e.target.value)}
                 className="filter-select"
+                disabled={loadingMembers}
               >
-                <option value="all">All Developers</option>
-                {developers.map(dev => (
+                <option value="all">
+                  {selectedTeam === 'all' ? 'All Developers' : 'All Team Members'}
+                </option>
+                {(selectedTeam === 'all' ? developers : teamMembers).map(dev => (
                   <option key={dev} value={dev}>{dev}</option>
                 ))}
               </select>
