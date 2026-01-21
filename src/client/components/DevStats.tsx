@@ -80,7 +80,7 @@ export const DevStats: React.FC<DevStatsProps> = ({ workItems, project, areaPath
       }
 
       const team = teams.find(t => t.id === selectedTeam);
-      if (!team || !('teamName' in team)) return;
+      if (!team || !('teamName' in team) || !team.teamName || !team.project) return;
 
       try {
         setLoadingMembers(true);
