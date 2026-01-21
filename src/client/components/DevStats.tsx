@@ -18,7 +18,8 @@ const HIT_RATE_LOADING_STATE_KEY = 'devStatsHitRateLoadingState';
 export const DevStats: React.FC<DevStatsProps> = ({ workItems, project, areaPath, onSelectItem }) => {
   // Clear all sessionStorage on page refresh
   useEffect(() => {
-    const isPageRefresh = performance.getEntriesByType('navigation')[0]?.type === 'reload';
+    const navigationEntries = performance.getEntriesByType('navigation');
+    const isPageRefresh = navigationEntries.length > 0 && (navigationEntries[0] as PerformanceNavigationTiming)?.type === 'reload';
     if (isPageRefresh) {
       sessionStorage.removeItem(DATA_STATE_KEY);
       sessionStorage.removeItem(LOADING_STATE_KEY);
