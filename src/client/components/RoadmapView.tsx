@@ -32,6 +32,7 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ workItems, project, areaPath,
   const [expandedItems, setExpandedItems] = useState<Set<number>>(new Set());
   const [childrenCache, setChildrenCache] = useState<Map<number, WorkItem[]>>(new Map());
   const [loadingChildren, setLoadingChildren] = useState<Set<number>>(new Set());
+  const [showInfoPanel, setShowInfoPanel] = useState<boolean>(false);
 
   // Generate timeline columns based on granularity and time range
   const timelineColumns: TimelineColumn[] = React.useMemo(() => {
@@ -306,7 +307,16 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ workItems, project, areaPath,
   return (
     <div className="roadmap-view">
       <div className="roadmap-header">
-        <h2>Roadmap</h2>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <h2>Roadmap</h2>
+          <button 
+            className="info-button"
+            onClick={() => setShowInfoPanel(!showInfoPanel)}
+            title="Show roadmap legend and status information"
+          >
+            ℹ️
+          </button>
+        </div>
         <div className="roadmap-controls">
           <div className="control-group">
             <label>Timeline:</label>
@@ -333,7 +343,49 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ workItems, project, areaPath,
         </div>
       </div>
 
+      {showInfoPanel && (
+        <div className="roadmap-info-panel">
+          <div className="info-section">
+            <h3>Status Indicators</h3>
+            <div className="status-explanations">
+              <div className="status-item">
+                <span className="status-badge" style={{ backgroundColor: getHealthStatusColor('on-track') }}>On Track</span>
+                <p>Completed work aligns with the timeline. Less than 75% of time has elapsed, or completion percentage is on pace with time elapsed.</p>
+              </div>
+              <div className="status-item">
+                <span className="status-badge" style={{ backgroundColor: getHealthStatusColor('ahead') }}>Ahead</span>
+                <p>Exceptional progress! Completion percentage significantly exceeds time elapsed (more than 20% faster than expected).</p>
+              </div>
+              <div className="status-item">
+                <span className="status-badge" style={{ backgroundColor: getHealthStatusColor('at-risk') }}>At Risk</span>
+                <p>Progress is lagging the timeline. More than 75% of time has elapsed but completion is below 100%, and deadline is within 60 days.</p>
+              </div>
+              <div className="status-item">
+                <span className="status-badge" style={{ backgroundColor: getHealthStatusColor('behind') }}>Behind</span>
+                <p>Work is overdue. The target date has passed but work is not yet completed.</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="info-section">
+            <h3>Percentages</h3>
+            <p>Percentages represent the completion rate of child items within each roadmap item:</p>
+            <ul>
+              <li><strong>Epics & Features:</strong> Percentage of child items marked as "Done" or "Closed"</li>
+              <li><strong>Progress Bar:</strong> Visual representation of completion percentage</li>
+              <li><strong>Current Period:</strong> Items with target dates in the current month are highlighted</li>
+            </ul>
+          </div>
+
+          <div className="info-section">
+            <h3>Planning Horizon</h3>
+            <p>Items beyond 60 days in the future are not flagged as "At Risk" even if work hasn't started, following Agile best practices for forward planning.</p>
+          </div>
+        </div>
+      )}
+
       <div className="roadmap-legend">
+
         <div className="legend-item">
           <span className="legend-dot" style={{ backgroundColor: getHealthStatusColor('on-track') }}></span>
           <span>On Track</span>
