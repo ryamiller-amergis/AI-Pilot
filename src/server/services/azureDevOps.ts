@@ -250,7 +250,7 @@ export class AzureDevOpsService {
         // Try to update custom field if it exists
         patchDocument.push({
           op: 'add',
-          path: '/fields/Custom.DueDateMovementReasons',
+          path: '/fields/Custom.DueDateChangeReason',
           value: reason,
         });
         
@@ -716,6 +716,13 @@ export class AzureDevOpsService {
 
       const ids = queryResult.workItems.map((wi) => wi.id!);
       console.log(`Analyzing ${ids.length} work items with due dates for hit rate`);
+      
+      // Debug: Check if 38505 is in the query results
+      if (ids.includes(38505)) {
+        console.log(`✓ Work item 38505 is in the query results`);
+      } else {
+        console.log(`✗ Work item 38505 NOT in query results - it may not match the WIQL filter criteria`);
+      }
 
       // Fetch work items in batches
       const batchSize = 200;
@@ -740,6 +747,7 @@ export class AzureDevOpsService {
         dueDateChangeCount: number;
         hit: boolean;
         completionInfo: string;
+        status: 'hit' | 'miss' | 'in-progress';
       }
 
       const developerMap = new Map<string, WorkItemAnalysis[]>();
@@ -760,6 +768,20 @@ export class AzureDevOpsService {
           const assignedTo = wi.fields['System.AssignedTo']?.displayName;
           const currentDueDate = wi.fields['Microsoft.VSTS.Scheduling.DueDate'];
 
+          // Debug: Check if this is work item 38505
+          if (wi.id === 38505) {
+            console.log(`\n=== FOUND Work Item 38505 ===`);
+            console.log(`Assigned to: ${assignedTo}`);
+            console.log(`Has due date: ${!!currentDueDate}`);
+            console.log(`Due date value: ${currentDueDate}`);
+            console.log(`Will be processed: ${assignedTo && currentDueDate ? 'YES' : 'NO'}`);
+            if (developerFilter) {
+              console.log(`Developer filter active: ${developerFilter}`);
+              console.log(`Matches filter: ${assignedTo === developerFilter ? 'YES' : 'NO'}`);
+            }
+            console.log(`=== END ===\n`);
+          }
+
           // Skip if no assignee or no due date
           if (!assignedTo || !currentDueDate) continue;
 
@@ -778,6 +800,18 @@ export class AzureDevOpsService {
             let transitionDate: string | null = null;
             let dueDateAtTransition: string | null = null;
             let hitDueDate = false;
+            let hasTransitioned = false;
+            let assignedToAtTransition: string | undefined = undefined;
+
+            // Debug logging for specific work item
+            const isDebugItem = wi.id === 38505;
+            if (isDebugItem) {
+              console.log(`\n=== DEBUG: Work Item ${wi.id} ===`);
+              console.log(`Currently assigned to: ${assignedTo}`);
+              console.log(`Current state: ${wi.fields['System.State']}`);
+              console.log(`Due date: ${currentDueDate}`);
+              console.log(`Total revisions: ${revisions.length}`);
+            }
 
             // Process revisions in chronological order
             for (let i = 0; i < revisions.length; i++) {
@@ -791,7 +825,8 @@ export class AzureDevOpsService {
 
               // Track due date changes
               if (revDueDate) {
-                const dueDateStr = new Date(revDueDate).toISOString().split('T')[0];
+                // Parse as UTC to avoid timezone shifts
+                const dueDateStr = revDueDate.split('T')[0];
                 
                 if (previousDueDate && previousDueDate !== dueDateStr) {
                   dueDateChangeCount++;
@@ -800,16 +835,32 @@ export class AzureDevOpsService {
                 previousDueDate = dueDateStr;
               }
 
-              // Check for transition from "In Progress" to completion states
-              if (prevState === 'In Progress' && 
-                  (revState === 'Ready for Test' || revState === 'In Test' || revState === 'Done')) {
+              // Check for transition from working states to completion states
+              const workingStates = ['In Progress', 'Committed', 'In Pull Request'];
+              const completionStates = ['Ready for Test', 'Ready For Test', 'In Test', 'Done'];
+              
+              if (workingStates.includes(prevState) && completionStates.includes(revState)) {
+                hasTransitioned = true;
+                transitionDate = revChangedDate ? revChangedDate.split('T')[0] : null;
                 
-                transitionDate = revChangedDate ? new Date(revChangedDate).toISOString().split('T')[0] : null;
+                // Capture who was assigned at the time of transition (from the previous revision)
+                assignedToAtTransition = prevRevision?.fields?.['System.AssignedTo']?.displayName;
+                
+                if (isDebugItem) {
+                  console.log(`\nTransition detected at revision ${i}:`);
+                  console.log(`  From: ${prevState} → To: ${revState}`);
+                  console.log(`  Transition date: ${transitionDate}`);
+                  console.log(`  Assigned to at transition: ${assignedToAtTransition}`);
+                }
                 
                 // Get the due date at the time of transition
                 const prevDueDate = prevRevision?.fields?.['Microsoft.VSTS.Scheduling.DueDate'];
                 if (prevDueDate) {
-                  dueDateAtTransition = new Date(prevDueDate).toISOString().split('T')[0];
+                  dueDateAtTransition = prevDueDate.split('T')[0];
+                  
+                  if (isDebugItem) {
+                    console.log(`  Due date at transition: ${dueDateAtTransition}`);
+                  }
                   
                   // Check if transition happened on or before the due date
                   if (transitionDate && dueDateAtTransition) {
@@ -818,41 +869,85 @@ export class AzureDevOpsService {
                     
                     if (transitionTime <= dueTime) {
                       hitDueDate = true;
+                      if (isDebugItem) console.log(`  Result: HIT (${transitionDate} <= ${dueDateAtTransition})`);
+                    } else {
+                      if (isDebugItem) console.log(`  Result: MISS (${transitionDate} > ${dueDateAtTransition})`);
                     }
                   }
                 }
               }
             }
 
-            const currentDueDateStr = new Date(currentDueDate).toISOString().split('T')[0];
+            const currentDueDateStr = currentDueDate.split('T')[0];
+            const currentState = wi.fields['System.State'];
+            const today = new Date().toISOString().split('T')[0];
             
-            // Determine hit/miss
-            // Hit = transitioned from In Progress to completion on/before due date AND no due date changes
+            // Determine hit/miss/in-progress status
+            // Hit = transitioned from working state to completion on/before due date AND no due date changes
             const hit = hitDueDate && dueDateChangeCount === 0;
+            
+            // Check if item has reached a completion state
+            const completionStates = ['Ready for Test', 'Ready For Test', 'In Test', 'Done', 'Closed', 'Resolved'];
+            const isCompleted = completionStates.includes(currentState);
+            
+            // Determine status: 'hit', 'miss', or 'in-progress'
+            let status: 'hit' | 'miss' | 'in-progress';
+            if (dueDateChangeCount > 0) {
+              status = 'miss';
+            } else if (hit) {
+              status = 'hit';
+            } else if (hasTransitioned && !hitDueDate) {
+              // Transitioned but after the due date
+              status = 'miss';
+            } else {
+              status = 'in-progress';
+            }
+            
+            if (isDebugItem) {
+              console.log(`\nFinal analysis:`);
+              console.log(`  Due date changes: ${dueDateChangeCount}`);
+              console.log(`  Has transitioned: ${hasTransitioned}`);
+              console.log(`  Hit due date: ${hitDueDate}`);
+              console.log(`  Status: ${status}`);
+              console.log(`  Will be attributed to: ${assignedToAtTransition || assignedTo}`);
+              console.log(`=== END DEBUG ===\n`);
+            }
             
             let completionInfo: string;
             if (dueDateChangeCount > 0) {
               completionInfo = `${dueDateChangeCount} change${dueDateChangeCount > 1 ? 's' : ''}`;
             } else if (transitionDate && dueDateAtTransition) {
-              completionInfo = `Completed ${transitionDate} (Due: ${dueDateAtTransition})`;
+              completionInfo = `Completed ${transitionDate}`;
+            } else if (!isCompleted) {
+              // Still in progress - check if past due
+              if (currentDueDateStr < today) {
+                completionInfo = 'Past due (In Progress)';
+              } else {
+                completionInfo = 'In Progress';
+              }
             } else {
-              completionInfo = 'Not completed';
+              // Completed but didn't track the transition properly
+              completionInfo = 'Completed (date unknown)';
             }
+
+            // Use the assignee at transition time if available, otherwise current assignee
+            const developerForStats = assignedToAtTransition || assignedTo;
 
             const analysis: WorkItemAnalysis = {
               id: wi.id,
               title: wi.fields['System.Title'] || '',
-              assignedTo,
+              assignedTo: developerForStats,
               dueDate: currentDueDateStr,
               dueDateChangeCount,
               hit,
-              completionInfo
+              completionInfo,
+              status
             };
 
-            if (!developerMap.has(assignedTo)) {
-              developerMap.set(assignedTo, []);
+            if (!developerMap.has(developerForStats)) {
+              developerMap.set(developerForStats, []);
             }
-            developerMap.get(assignedTo)!.push(analysis);
+            developerMap.get(developerForStats)!.push(analysis);
           } catch (error) {
             console.error(`Error analyzing work item ${wi.id}:`, error);
             // Continue with next work item
@@ -867,8 +962,8 @@ export class AzureDevOpsService {
         // Hit count = work items that completed on time with no due date changes
         const hitCount = workItems.filter(wi => wi.hit).length;
         
-        // Missed count = total number of due date changes across all work items
-        const missCount = workItems.reduce((sum, wi) => sum + wi.dueDateChangeCount, 0);
+        // Miss count = work items that had due date changes OR completed after due date
+        const missCount = workItems.filter(wi => wi.status === 'miss').length;
         
         const totalCount = workItems.length;
 
@@ -883,7 +978,8 @@ export class AzureDevOpsService {
             title: wi.title,
             dueDate: wi.dueDate!,
             completionDate: wi.completionInfo,
-            hit: wi.hit
+            hit: wi.hit,
+            status: wi.status
           }))
         });
       }
@@ -998,6 +1094,70 @@ export class AzureDevOpsService {
       }
 
       return relatedItems;
+    });
+  }
+
+  async getDueDateChangeHistoryForItem(workItemId: number): Promise<Array<{
+    changedDate: string;
+    changedBy: string;
+    oldDueDate: string | null;
+    newDueDate: string | null;
+    reason: string | null;
+  }>> {
+    return retryWithBackoff(async () => {
+      const witApi = await this.connection.getWorkItemTrackingApi();
+      
+      // Get all revisions of the work item
+      const revisions = await witApi.getRevisions(workItemId);
+      
+      if (!revisions || revisions.length === 0) {
+        return [];
+      }
+
+      const changes: Array<{
+        changedDate: string;
+        changedBy: string;
+        oldDueDate: string | null;
+        newDueDate: string | null;
+        reason: string | null;
+      }> = [];
+
+      let previousDueDate: string | null = null;
+
+      for (let i = 0; i < revisions.length; i++) {
+        const revision = revisions[i];
+        const currentDueDate = revision.fields?.['Microsoft.VSTS.Scheduling.DueDate'];
+        const currentDueDateStr = currentDueDate ? currentDueDate.split('T')[0] : null;
+        const changedBy = revision.fields?.['System.ChangedBy']?.displayName || 'Unknown';
+        const changedDate = revision.fields?.['System.ChangedDate'];
+        
+        // Try to get reason from custom field first, then from history
+        let reason = revision.fields?.['Custom.DueDateChangeReason'] || null;
+        if (!reason) {
+          const history = revision.fields?.['System.History'];
+          if (history && typeof history === 'string') {
+            const match = history.match(/Due date change reason: (.+)/);
+            if (match) {
+              reason = match[1];
+            }
+          }
+        }
+
+        // Detect due date change (skip initial setting from null)
+        if (currentDueDateStr !== previousDueDate && previousDueDate !== null) {
+          changes.push({
+            changedDate: changedDate ? new Date(changedDate).toISOString() : '',
+            changedBy,
+            oldDueDate: previousDueDate,
+            newDueDate: currentDueDateStr,
+            reason
+          });
+        }
+
+        previousDueDate = currentDueDateStr;
+      }
+
+      return changes;
     });
   }
 }

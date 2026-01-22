@@ -499,6 +499,13 @@
   margin-top: 4px;
 }
 
+.related-item-reason {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 4px;
+  font-style: italic;
+}
+
 /* Dark mode adjustments for related item states */
 @media (prefers-color-scheme: dark) {
   .related-item-state.state-new {

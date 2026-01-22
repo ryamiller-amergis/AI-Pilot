@@ -1,6 +1,6 @@
 import { WorkItem, DeveloperDueDateStats, DueDateHitRateStats } from '../types/workitem';
 import './DevStats.css';
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 
 interface DevStatsProps {
   workItems: WorkItem[];
@@ -14,68 +14,116 @@ const DATA_STATE_KEY = 'devStatsData';
 const FILTER_STATE_KEY = 'devStatsFilters';
 const HIT_RATE_DATA_KEY = 'devStatsHitRateData';
 const HIT_RATE_LOADING_STATE_KEY = 'devStatsHitRateLoadingState';
+const SESSION_INITIALIZED_KEY = 'devStatsSessionInitialized';
+
+// Check for page refresh once - this runs before component render
+const checkAndClearOnRefresh = () => {
+  // If session was already initialized, this is a tab switch, not a page refresh
+  const wasInitialized = sessionStorage.getItem(SESSION_INITIALIZED_KEY);
+  
+  if (!wasInitialized) {
+    // First load or actual page refresh - clear everything
+    console.log('DevStats - Page refresh/first load detected, clearing sessionStorage');
+    sessionStorage.removeItem(DATA_STATE_KEY);
+    sessionStorage.removeItem(LOADING_STATE_KEY);
+    sessionStorage.removeItem(FILTER_STATE_KEY);
+    sessionStorage.removeItem(HIT_RATE_DATA_KEY);
+    sessionStorage.removeItem(HIT_RATE_LOADING_STATE_KEY);
+    sessionStorage.setItem(SESSION_INITIALIZED_KEY, 'true');
+    return true;
+  }
+  
+  console.log('DevStats - Tab navigation detected, restoring from sessionStorage');
+  return false;
+};
 
 export const DevStats: React.FC<DevStatsProps> = ({ workItems, project, areaPath, onSelectItem }) => {
-  // Clear all sessionStorage on page refresh
-  useEffect(() => {
-    const navigationEntries = performance.getEntriesByType('navigation');
-    const isPageRefresh = navigationEntries.length > 0 && (navigationEntries[0] as PerformanceNavigationTiming)?.type === 'reload';
-    if (isPageRefresh) {
-      sessionStorage.removeItem(DATA_STATE_KEY);
-      sessionStorage.removeItem(LOADING_STATE_KEY);
-      sessionStorage.removeItem(FILTER_STATE_KEY);
-      sessionStorage.removeItem(HIT_RATE_DATA_KEY);
-      sessionStorage.removeItem(HIT_RATE_LOADING_STATE_KEY);
-      console.log('DevStats - Cleared sessionStorage due to page refresh');
-    }
-  }, []);
+  const [isPageRefresh] = useState(() => checkAndClearOnRefresh());
 
   // Restore data from sessionStorage on mount
   const [dueDateStats, setDueDateStats] = useState<DeveloperDueDateStats[]>(() => {
+    if (isPageRefresh) return [];
     const savedData = sessionStorage.getItem(DATA_STATE_KEY);
     return savedData ? JSON.parse(savedData).stats : [];
   });
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(() => {
+    if (isPageRefresh) return false;
+    const savedLoading = sessionStorage.getItem(LOADING_STATE_KEY);
+    return savedLoading ? JSON.parse(savedLoading).loading : false;
+  });
   const [error, setError] = useState<string | null>(null);
   const [hasLoaded, setHasLoaded] = useState(() => {
+    if (isPageRefresh) return false;
     const savedData = sessionStorage.getItem(DATA_STATE_KEY);
     return savedData ? JSON.parse(savedData).hasLoaded : false;
   });
-  const [showNotification, setShowNotification] = useState(false);
-  const [notificationMessage, setNotificationMessage] = useState('');
+  const [showNotification, setShowNotification] = useState(() => {
+    if (isPageRefresh) return false;
+    const savedLoading = sessionStorage.getItem(LOADING_STATE_KEY);
+    return savedLoading ? JSON.parse(savedLoading).loading : false;
+  });
+  const [notificationMessage, setNotificationMessage] = useState(() => {
+    if (isPageRefresh) return '';
+    const savedLoading = sessionStorage.getItem(LOADING_STATE_KEY);
+    return savedLoading ? 'Loading statistics in background...' : '';
+  });
   
   // Due date hit rate state
   const [hitRateStats, setHitRateStats] = useState<DueDateHitRateStats[]>(() => {
+    if (isPageRefresh) return [];
     const savedData = sessionStorage.getItem(HIT_RATE_DATA_KEY);
     return savedData ? JSON.parse(savedData).stats : [];
   });
-  const [hitRateLoading, setHitRateLoading] = useState(false);
+  const [hitRateLoading, setHitRateLoading] = useState(() => {
+    if (isPageRefresh) return false;
+    const savedLoading = sessionStorage.getItem(HIT_RATE_LOADING_STATE_KEY);
+    return savedLoading ? JSON.parse(savedLoading).loading : false;
+  });
   const [hitRateHasLoaded, setHitRateHasLoaded] = useState(() => {
+    if (isPageRefresh) return false;
     const savedData = sessionStorage.getItem(HIT_RATE_DATA_KEY);
     return savedData ? JSON.parse(savedData).hasLoaded : false;
   });
   const [hitRateError, setHitRateError] = useState<string | null>(null);
-  const [showHitRateNotification, setShowHitRateNotification] = useState(false);
-  const [hitRateNotificationMessage, setHitRateNotificationMessage] = useState('');
+  const [showHitRateNotification, setShowHitRateNotification] = useState(() => {
+    if (isPageRefresh) return false;
+    const savedLoading = sessionStorage.getItem(HIT_RATE_LOADING_STATE_KEY);
+    return savedLoading ? JSON.parse(savedLoading).loading : false;
+  });
+  const [hitRateNotificationMessage, setHitRateNotificationMessage] = useState(() => {
+    if (isPageRefresh) return '';
+    const savedLoading = sessionStorage.getItem(HIT_RATE_LOADING_STATE_KEY);
+    return savedLoading ? 'Loading hit rate data in background...' : '';
+  });
   
   // Info tooltip state
   const [showChangesInfo, setShowChangesInfo] = useState(false);
   const [showHitRateInfo, setShowHitRateInfo] = useState(false);
   
+  // Collapse state for sections
+  const [isChangesCollapsed, setIsChangesCollapsed] = useState(false);
+  const [isHitRateCollapsed, setIsHitRateCollapsed] = useState(false);
+  const [collapsedReasons, setCollapsedReasons] = useState<Set<string>>(new Set());
+  const [collapsedHitRate, setCollapsedHitRate] = useState<Set<string>>(new Set());
+  
   // Filter states - restore from sessionStorage
   const [selectedDeveloper, setSelectedDeveloper] = useState<string>(() => {
+    if (isPageRefresh) return 'all';
     const savedFilters = sessionStorage.getItem(FILTER_STATE_KEY);
     return savedFilters ? JSON.parse(savedFilters).selectedDeveloper : 'all';
   });
   const [timeFrame, setTimeFrame] = useState<string>(() => {
+    if (isPageRefresh) return '30';
     const savedFilters = sessionStorage.getItem(FILTER_STATE_KEY);
     return savedFilters ? JSON.parse(savedFilters).timeFrame : '30';
   });
   const [customFromDate, setCustomFromDate] = useState(() => {
+    if (isPageRefresh) return '';
     const savedFilters = sessionStorage.getItem(FILTER_STATE_KEY);
     return savedFilters ? JSON.parse(savedFilters).customFromDate : '';
   });
   const [customToDate, setCustomToDate] = useState(() => {
+    if (isPageRefresh) return '';
     const savedFilters = sessionStorage.getItem(FILTER_STATE_KEY);
     return savedFilters ? JSON.parse(savedFilters).customToDate : '';
   });
@@ -330,8 +378,8 @@ export const DevStats: React.FC<DevStatsProps> = ({ workItems, project, areaPath
       setNotificationMessage(`Error: ${errorMsg}`);
     } finally {
       setLoading(false);
-      // Clear loading state from sessionStorage
-      sessionStorage.removeItem(LOADING_STATE_KEY);
+      // Update loading state to false instead of removing
+      sessionStorage.setItem(LOADING_STATE_KEY, JSON.stringify({ loading: false, timestamp: Date.now() }));
     }
   };
 
@@ -398,8 +446,8 @@ export const DevStats: React.FC<DevStatsProps> = ({ workItems, project, areaPath
       setHitRateNotificationMessage(`Error: ${errorMsg}`);
     } finally {
       setHitRateLoading(false);
-      // Clear loading state from sessionStorage
-      sessionStorage.removeItem(HIT_RATE_LOADING_STATE_KEY);
+      // Update loading state to false instead of removing
+      sessionStorage.setItem(HIT_RATE_LOADING_STATE_KEY, JSON.stringify({ loading: false, timestamp: Date.now() }));
     }
   };
 
@@ -543,8 +591,13 @@ export const DevStats: React.FC<DevStatsProps> = ({ workItems, project, areaPath
       </div>
       
       <div className="stats-section">
-        <h3>
-          Due Date Changes by Developer
+        <h3>          <button 
+            className="collapse-button"
+            onClick={() => setIsChangesCollapsed(!isChangesCollapsed)}
+            aria-label={isChangesCollapsed ? 'Expand section' : 'Collapse section'}
+          >
+            {isChangesCollapsed ? '▶' : '▼'}
+          </button>          Due Date Changes by Developer
           <span 
             className="info-icon" 
             onClick={() => setShowChangesInfo(!showChangesInfo)}
@@ -577,17 +630,19 @@ export const DevStats: React.FC<DevStatsProps> = ({ workItems, project, areaPath
           </div>
         )}
         
-        <div className="filter-actions">
-          <button 
-            onClick={fetchDueDateStats} 
-            disabled={loading || (timeFrame === 'custom' && (!customFromDate || !customToDate))}
-            className="load-stats-button"
-          >
-            {loading ? 'Loading...' : hasLoaded ? 'Refresh Statistics' : 'Load Statistics'}
-          </button>
-        </div>
+        {!isChangesCollapsed && (
+          <div className="filter-actions">
+            <button 
+              onClick={fetchDueDateStats} 
+              disabled={loading || (timeFrame === 'custom' && (!customFromDate || !customToDate))}
+              className="load-stats-button"
+            >
+              {loading ? 'Loading...' : hasLoaded ? 'Refresh Statistics' : 'Load Statistics'}
+            </button>
+          </div>
+        )}
         
-        {(showNotification || loading) && (
+        {!isChangesCollapsed && (showNotification || loading) && (
           <div className={`background-notification ${loading ? 'loading' : error ? 'error' : 'success'}`}>
             {loading && <div className="notification-spinner"></div>}
             <span className="notification-text">{loading ? 'Loading statistics in background...' : notificationMessage}</span>
@@ -603,44 +658,75 @@ export const DevStats: React.FC<DevStatsProps> = ({ workItems, project, areaPath
           </div>
         )}
         
-        {!hasLoaded && !loading && (
+        {!isChangesCollapsed && !hasLoaded && !loading && (
           <p className="placeholder-text">Select filters and click "Load Statistics" to view due date change statistics.</p>
         )}
         
-        {hasLoaded && !loading && filteredStats.length === 0 && (
+        {!isChangesCollapsed && hasLoaded && !loading && filteredStats.length === 0 && (
           <p className="placeholder-text">No due date changes found for the selected filters.</p>
         )}
         
-        {hasLoaded && !loading && filteredStats.length > 0 && (
+        {!isChangesCollapsed && hasLoaded && !loading && filteredStats.length > 0 && (
           <div className="developer-stats-list">
-            {filteredStats.map((devStats, index) => (
-              <div key={index} className="developer-stat-card">
-                <div className="developer-header">
-                  <span className="developer-name">{devStats.developer}</span>
-                  <span className="total-changes">{devStats.totalChanges} changes</span>
+            {filteredStats.map((devStats, index) => {
+              const devKey = `changes-${devStats.developer}`;
+              const isCollapsed = collapsedReasons.has(devKey);
+              
+              return (
+                <div key={index} className="developer-stat-card">
+                  <div className="developer-header">
+                    <span className="developer-name">{devStats.developer}</span>
+                    <span className="total-changes">{devStats.totalChanges} changes</span>
+                  </div>
+                  
+                  <div className="reason-breakdown">
+                    <h4>
+                      <button 
+                        className="collapse-button-small"
+                        onClick={() => {
+                          const newSet = new Set(collapsedReasons);
+                          if (isCollapsed) {
+                            newSet.delete(devKey);
+                          } else {
+                            newSet.add(devKey);
+                          }
+                          setCollapsedReasons(newSet);
+                        }}
+                        aria-label={isCollapsed ? 'Expand reasons' : 'Collapse reasons'}
+                      >
+                        {isCollapsed ? '▶' : '▼'}
+                      </button>
+                      Reasons:
+                    </h4>
+                    {!isCollapsed && (
+                      <ul className="reason-list">
+                        {Object.entries(devStats.reasonBreakdown)
+                          .sort(([, a], [, b]) => b - a)
+                          .map(([reason, count], idx) => (
+                            <li key={idx} className="reason-item">
+                              <span className="reason-text">{reason}</span>
+                              <span className="reason-count">{count}</span>
+                            </li>
+                          ))}
+                      </ul>
+                    )}
+                  </div>
                 </div>
-                
-                <div className="reason-breakdown">
-                  <h4>Reasons:</h4>
-                  <ul className="reason-list">
-                    {Object.entries(devStats.reasonBreakdown)
-                      .sort(([, a], [, b]) => b - a)
-                      .map(([reason, count], idx) => (
-                        <li key={idx} className="reason-item">
-                          <span className="reason-text">{reason}</span>
-                          <span className="reason-count">{count}</span>
-                        </li>
-                      ))}
-                  </ul>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
 
       <div className="stats-section">
         <h3>
+          <button 
+            className="collapse-button"
+            onClick={() => setIsHitRateCollapsed(!isHitRateCollapsed)}
+            aria-label={isHitRateCollapsed ? 'Expand section' : 'Collapse section'}
+          >
+            {isHitRateCollapsed ? '▶' : '▼'}
+          </button>
           Due Date Hit Rate
           <span 
             className="info-icon" 
@@ -667,29 +753,31 @@ export const DevStats: React.FC<DevStatsProps> = ({ workItems, project, areaPath
             </p>
             <p>
               <strong>How to interpret:</strong><br />
-              • <strong>No Changes (Hit):</strong> Work items that transitioned from "In Progress" to completion 
+              • <strong>No Changes (Hit):</strong> Work items that transitioned from working states (In Progress, Committed, In Pull Request) to completion 
               (Ready for Test, In Test, or Done) on or before the due date with no due date changes<br />
-              • <strong>Due Date Changes:</strong> Total number of times due dates were modified across all work items<br />
+              • <strong>Missed Due Date:</strong> Work items that had due date changes OR completed after the due date<br />
               • <strong>Hit Rate %:</strong> Percentage of work items completed on time without date changes
             </p>
             <p>
-              <strong>Note:</strong> Each due date change on a work item increments the "Due Date Changes" count, 
-              so a work item changed 3 times contributes 3 to this total.
+              <strong>Note:</strong> Work items still in progress with future due dates and no changes are not counted 
+              as hits or misses - they're included in total work items but are pending completion.
             </p>
           </div>
         )}
         
-        <div className="filter-actions">
-          <button 
-            onClick={fetchDueDateHitRate} 
-            disabled={hitRateLoading || (timeFrame === 'custom' && (!customFromDate || !customToDate))}
-            className="load-stats-button"
-          >
-            {hitRateLoading ? 'Loading...' : hitRateHasLoaded ? 'Refresh Hit Rate' : 'Load Hit Rate'}
-          </button>
-        </div>
+        {!isHitRateCollapsed && (
+          <div className="filter-actions">
+            <button 
+              onClick={fetchDueDateHitRate} 
+              disabled={hitRateLoading || (timeFrame === 'custom' && (!customFromDate || !customToDate))}
+              className="load-stats-button"
+            >
+              {hitRateLoading ? 'Loading...' : hitRateHasLoaded ? 'Refresh Hit Rate' : 'Load Hit Rate'}
+            </button>
+          </div>
+        )}
         
-        {(showHitRateNotification || hitRateLoading) && (
+        {!isHitRateCollapsed && (showHitRateNotification || hitRateLoading) && (
           <div className={`background-notification ${hitRateLoading ? 'loading' : hitRateError ? 'error' : 'success'}`}>
             {hitRateLoading && <div className="notification-spinner"></div>}
             <span className="notification-text">{hitRateLoading ? 'Loading hit rate statistics in background...' : hitRateNotificationMessage}</span>
@@ -705,86 +793,96 @@ export const DevStats: React.FC<DevStatsProps> = ({ workItems, project, areaPath
           </div>
         )}
         
-        {!hitRateHasLoaded && !hitRateLoading && (
+        {!isHitRateCollapsed && !hitRateHasLoaded && !hitRateLoading && (
           <p className="placeholder-text">Click "Load Hit Rate" to view statistics on due date changes per developer.</p>
         )}
         
-        {hitRateHasLoaded && !hitRateLoading && filteredHitRateStats.length === 0 && (
+        {!isHitRateCollapsed && hitRateHasLoaded && !hitRateLoading && filteredHitRateStats.length === 0 && (
           <p className="placeholder-text">No work items with due dates found for the selected filters.</p>
         )}
         
-        {hitRateHasLoaded && !hitRateLoading && filteredHitRateStats.length > 0 && (
+        {!isHitRateCollapsed && hitRateHasLoaded && !hitRateLoading && filteredHitRateStats.length > 0 && (
           <div className="developer-stats-list">
-            {filteredHitRateStats.map((stats, index) => (
-              <div key={index} className="developer-stat-card">
-                <div className="developer-header">
-                  <span className="developer-name">{stats.developer}</span>
-                  <span className="total-changes">{stats.totalWorkItems} work items</span>
-                </div>
-                
-                <div className="hit-rate-summary">
-                  <div className="hit-rate-bar-container">
-                    <div 
-                      className="hit-rate-bar hit"
-                      style={{ width: `${stats.hitRate}%` }}
-                    >
-                      {stats.hitRate > 15 && `${stats.hitRate.toFixed(1)}%`}
+            {filteredHitRateStats.map((stats, index) => {
+              const devKey = `hitrate-${stats.developer}`;
+              const isCollapsed = collapsedHitRate.has(devKey);
+              
+              return (
+                <div key={index} className="developer-stat-card">
+                  <div className="developer-header">
+                    <span className="developer-name">{stats.developer}</span>
+                    <span className="total-changes">{stats.totalWorkItems} work items</span>
+                  </div>
+                  
+                  <div className="hit-rate-summary">
+                    <div className="hit-rate-bar-container">
+                      <div 
+                        className="hit-rate-bar hit"
+                        style={{ width: `${stats.hitRate}%` }}
+                      >
+                        {stats.hitRate > 15 && `${stats.hitRate.toFixed(1)}%`}
+                      </div>
+                      <div 
+                        className="hit-rate-bar miss"
+                        style={{ width: `${stats.missedDueDate > 0 ? ((stats.missedDueDate / (stats.hitDueDate + stats.missedDueDate)) * 100) : 0}%` }}
+                      >
+                        {((stats.missedDueDate / (stats.hitDueDate + stats.missedDueDate || 1)) * 100) > 15 && `${((stats.missedDueDate / (stats.hitDueDate + stats.missedDueDate)) * 100).toFixed(1)}%`}
+                      </div>
+                      <div 
+                        className="hit-rate-bar in-progress"
+                        style={{ width: `${100 - stats.hitRate - ((stats.missedDueDate / (stats.hitDueDate + stats.missedDueDate || 1)) * 100)}%` }}
+                      >
+                      </div>
                     </div>
-                    <div 
-                      className="hit-rate-bar miss"
-                      style={{ width: `${100 - stats.hitRate}%` }}
-                    >
-                      {100 - stats.hitRate > 15 && `${(100 - stats.hitRate).toFixed(1)}%`}
+                    
+                    <div className="hit-rate-details">
+                      <div className="hit-rate-stat">
+                        <span className="stat-label hit">No Changes (Hit):</span>
+                        <span className="stat-value">{stats.hitDueDate}</span>
+                      </div>
+                      <div className="hit-rate-stat">
+                        <span className="stat-label miss">Missed Due Date:</span>
+                        <span className="stat-value">{stats.missedDueDate}</span>
+                      </div>
                     </div>
                   </div>
                   
-                  <div className="hit-rate-details">
-                    <div className="hit-rate-stat">
-                      <span className="stat-label hit">No Changes (Hit):</span>
-                      <span className="stat-value">{stats.hitDueDate}</span>
-                    </div>
-                    <div className="hit-rate-stat">
-                      <span className="stat-label miss">Due Date Changes:</span>
-                      <span className="stat-value">{stats.missedDueDate}</span>
-                    </div>
-                  </div>
+                  {stats.workItemDetails.length > 0 && (
+                    <details className="work-item-details">
+                      <summary>View Work Items ({stats.workItemDetails.length})</summary>
+                      <ul className="work-item-list">
+                        {stats.workItemDetails.map((item, idx) => {
+                          const fullWorkItem = workItems.find(wi => wi.id === item.id);
+                          return (
+                            <li 
+                              key={idx} 
+                              className={`work-item ${item.status}${onSelectItem && fullWorkItem ? ' clickable' : ''}`}
+                              onClick={() => {
+                                if (onSelectItem && fullWorkItem) {
+                                  onSelectItem(fullWorkItem);
+                                }
+                              }}
+                              role={onSelectItem && fullWorkItem ? 'button' : undefined}
+                              tabIndex={onSelectItem && fullWorkItem ? 0 : undefined}
+                            >
+                              <span className="work-item-id">#{item.id}</span>
+                              <span className="work-item-title">{item.title}</span>
+                              <span className="work-item-dates">
+                                Due: {item.dueDate} | 
+                                {item.completionDate}
+                              </span>
+                              <span className={`work-item-status ${item.status}`}>
+                                {item.status === 'hit' ? '✓ Hit' : item.status === 'in-progress' ? `⏳ ${item.completionDate}` : `✗ ${item.completionDate}`}
+                              </span>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </details>
+                  )}
                 </div>
-                
-                {stats.workItemDetails.length > 0 && (
-                  <details className="work-item-details">
-                    <summary>View Work Items ({stats.workItemDetails.length})</summary>
-                    <ul className="work-item-list">
-                      {stats.workItemDetails.map((item, idx) => {
-                        const fullWorkItem = workItems.find(wi => wi.id === item.id);
-                        return (
-                          <li 
-                            key={idx} 
-                            className={`work-item ${item.hit ? 'hit' : 'miss'}${onSelectItem && fullWorkItem ? ' clickable' : ''}`}
-                            onClick={() => {
-                              if (onSelectItem && fullWorkItem) {
-                                onSelectItem(fullWorkItem);
-                              }
-                            }}
-                            role={onSelectItem && fullWorkItem ? 'button' : undefined}
-                            tabIndex={onSelectItem && fullWorkItem ? 0 : undefined}
-                          >
-                            <span className="work-item-id">#{item.id}</span>
-                            <span className="work-item-title">{item.title}</span>
-                            <span className="work-item-dates">
-                              Due: {new Date(item.dueDate).toLocaleDateString()} | 
-                              {item.completionDate}
-                            </span>
-                            <span className={`work-item-status ${item.hit ? 'hit' : 'miss'}`}>
-                              {item.hit ? '✓ Hit' : item.completionDate.includes('change') ? `✗ ${item.completionDate}` : '✗ Not completed on time'}
-                            </span>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  </details>
-                )}
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

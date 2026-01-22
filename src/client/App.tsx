@@ -25,7 +25,7 @@ function App() {
   const [currentDate] = useState(new Date());
   const [selectedItem, setSelectedItem] = useState<WorkItem | null>(null);
   const [currentView, setCurrentView] = useState<'calendar' | 'analytics'>('calendar');
-  const [analyticsTab, setAnalyticsTab] = useState<'cycle-time' | 'dev-stats'>('cycle-time');
+  const [analyticsTab, setAnalyticsTab] = useState<'cycle-time' | 'dev-stats' | 'qa' | 'roadmap'>('cycle-time');
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     const saved = localStorage.getItem('theme');
     return (saved as 'light' | 'dark') || 'dark';
@@ -430,6 +430,18 @@ function App() {
               >
                 Developer Statistics
               </button>
+              <button
+                className={`tab-button ${analyticsTab === 'qa' ? 'active' : ''}`}
+                onClick={() => setAnalyticsTab('qa')}
+              >
+                QA Analytics
+              </button>
+              <button
+                className={`tab-button ${analyticsTab === 'roadmap' ? 'active' : ''}`}
+                onClick={() => setAnalyticsTab('roadmap')}
+              >
+                Roadmap
+              </button>
             </div>
             <div className="analytics-content">
               {analyticsTab === 'cycle-time' ? (
@@ -438,13 +450,23 @@ function App() {
                   project={selectedProject}
                   areaPath={selectedAreaPath}
                 />
-              ) : (
+              ) : analyticsTab === 'dev-stats' ? (
                 <DevStats 
                   workItems={workItems}
                   project={selectedProject}
                   areaPath={selectedAreaPath}
                   onSelectItem={setSelectedItem}
                 />
+              ) : analyticsTab === 'qa' ? (
+                <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                  <h2>QA Analytics</h2>
+                  <p>Coming soon...</p>
+                </div>
+              ) : (
+                <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                  <h2>Roadmap</h2>
+                  <p>Coming soon...</p>
+                </div>
               )}
             </div>
             {selectedItem && currentView === 'analytics' && (

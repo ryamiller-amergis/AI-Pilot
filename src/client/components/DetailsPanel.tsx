@@ -39,6 +39,15 @@ export const DetailsPanel: React.FC<DetailsPanelProps> = ({
   const [relatedItems, setRelatedItems] = useState<WorkItem[]>([]);
   const [isLoadingRelations, setIsLoadingRelations] = useState(false);
   const [showRelatedItems, setShowRelatedItems] = useState(false);
+  const [dueDateChanges, setDueDateChanges] = useState<Array<{
+    changedDate: string;
+    changedBy: string;
+    oldDueDate: string | null;
+    newDueDate: string | null;
+    reason: string | null;
+  }>>([]);
+  const [isLoadingChanges, setIsLoadingChanges] = useState(false);
+  const [showDueDateChanges, setShowDueDateChanges] = useState(false);
 
   if (!workItem) return null;
 
@@ -78,6 +87,29 @@ export const DetailsPanel: React.FC<DetailsPanelProps> = ({
     }
   }, [workItem.id, workItem.workItemType, project, areaPath]);
 
+  // Fetch due date change history for PBI/TBI
+  useEffect(() => {
+    const shouldFetchChanges = 
+      workItem.workItemType === 'Product Backlog Item' || 
+      workItem.workItemType === 'Technical Backlog Item';
+
+    if (shouldFetchChanges) {
+      setIsLoadingChanges(true);
+      fetch(`/api/workitems/${workItem.id}/due-date-changes?project=${encodeURIComponent(project)}`)
+        .then(res => res.json())
+        .then(data => {
+          setDueDateChanges(data);
+          setIsLoadingChanges(false);
+        })
+        .catch(err => {
+          console.error('Error fetching due date changes:', err);
+          setIsLoadingChanges(false);
+        });
+    } else {
+      setDueDateChanges([]);
+    }
+  }, [workItem.id, workItem.workItemType, project]);
+
   // Extract unique values for dropdowns
   const uniqueStates = useMemo(() => {
     const states = new Set(allWorkItems.map(item => item.state));
@@ -102,8 +134,10 @@ export const DetailsPanel: React.FC<DetailsPanelProps> = ({
     return Array.from(iterations).sort();
   }, [allWorkItems]);
 
-  const handleRemoveDueDate = () => {
-    onUpdateDueDate(workItem.id, null);
+  const handleRemoveDueDate = async () => {
+    await onUpdateDueDate(workItem.id, null);
+    // Wait for the API request to complete
+    await new Promise(resolve => setTimeout(resolve, 500));
   };
 
   const handleFieldChange = async (field: string, value: any) => {
@@ -462,6 +496,51 @@ export const DetailsPanel: React.FC<DetailsPanelProps> = ({
             )}
           </div>
         )}
+
+        {/* Due Date Changes Section */}
+        {(workItem.workItemType === 'Product Backlog Item' || workItem.workItemType === 'TBI') && (
+          <div className="related-items-section">
+            <div 
+              className="related-items-header"
+              onClick={() => setShowDueDateChanges(!showDueDateChanges)}
+            >
+              <span className="related-items-title">
+                {showDueDateChanges ? '▼' : '▶'} Due Date Changes ({dueDateChanges.length})
+              </span>
+            </div>
+            {showDueDateChanges && (
+              <div className="related-items-content">
+                {isLoadingChanges ? (
+                  <div className="related-items-loading">Loading...</div>
+                ) : dueDateChanges.length === 0 ? (
+                  <div className="related-items-empty">No due date changes found</div>
+                ) : (
+                  <ul className="related-items-list">
+                    {dueDateChanges.map((change, index) => (
+                      <li key={index} className="related-item">
+                        <div className="related-item-header">
+                          <span className="related-item-id">
+                            {new Date(change.changedDate).toLocaleDateString()}
+                          </span>
+                          <span className="related-item-type">by {change.changedBy}</span>
+                        </div>
+                        <div className="related-item-title">
+                          {change.oldDueDate ? new Date(change.oldDueDate).toLocaleDateString() : 'No Date'} → {change.newDueDate ? new Date(change.newDueDate).toLocaleDateString() : 'No Date'}
+                        </div>
+                        {change.reason && (
+                          <div className="related-item-assignee">
+                            Reason: {change.reason}
+                          </div>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="detail-row">
           <span className="detail-label">Area Path:</span>
           <span className="detail-value">{workItem.areaPath}</span>
