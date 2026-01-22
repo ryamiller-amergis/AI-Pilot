@@ -543,8 +543,8 @@ describe('AzureDevOpsService', () => {
 
       const result = await service.getEpicChildren(100);
 
-      expect(result).toHaveLength(1); // Only PBI, Feature filtered out
-      expect(result[0].workItemType).toBe('Product Backlog Item');
+      expect(result).toHaveLength(1); // Only Feature, PBI filtered out
+      expect(result[0].workItemType).toBe('Feature');
     });
 
     it('should return empty array when epic has no children', async () => {
