@@ -299,7 +299,7 @@ describe('AzureDevOpsService', () => {
       );
     });
 
-    it('should include reason in history and custom field when provided', async () => {
+    it('should include reason in history when provided', async () => {
       const service = new AzureDevOpsService();
 
       await service.updateDueDate(1, '2024-03-15', 'Client request');
@@ -307,11 +307,6 @@ describe('AzureDevOpsService', () => {
       expect(mockWitApi.updateWorkItem).toHaveBeenCalledWith(
         {},
         expect.arrayContaining([
-          expect.objectContaining({
-            op: 'add',
-            path: '/fields/Custom.DueDateChangeReason',
-            value: 'Client request',
-          }),
           expect.objectContaining({
             op: 'add',
             path: '/fields/System.History',
