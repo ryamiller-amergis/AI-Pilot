@@ -161,5 +161,4 @@ Integrated into the cycle, not separate - Scrum is part of the process, not just
 The overall composition creates a sense of movement, iteration, and organized workflow - the essence of Scrum methodology where teams work in focused sprints, continuously deliver value, and improve incrementally.
 
 ## License
-
 MIT
