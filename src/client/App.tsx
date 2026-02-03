@@ -8,6 +8,7 @@ import { DetailsPanel } from './components/DetailsPanel';
 import { CycleTimeAnalytics } from './components/CycleTimeAnalytics';
 import { DevStats } from './components/DevStats';
 import { RoadmapView } from './components/RoadmapView';
+import ReleaseView from './components/ReleaseView';
 import { DueDateReasonModal } from './components/DueDateReasonModal';
 import { Changelog } from './components/Changelog';
 import { UserMenu } from './components/UserMenu';
@@ -31,7 +32,7 @@ function App() {
   const [currentDate] = useState(new Date());
   const [selectedItem, setSelectedItem] = useState<WorkItem | null>(null);
   const [currentView, setCurrentView] = useState<'calendar' | 'analytics'>('calendar');
-  const [analyticsTab, setAnalyticsTab] = useState<'cycle-time' | 'dev-stats' | 'qa' | 'roadmap'>('cycle-time');
+  const [analyticsTab, setAnalyticsTab] = useState<'cycle-time' | 'dev-stats' | 'qa' | 'roadmap' | 'releases'>('cycle-time');
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     const saved = localStorage.getItem('theme');
     return (saved as 'light' | 'dark') || 'dark';
@@ -467,6 +468,12 @@ function App() {
               >
                 Roadmap
               </button>
+              <button
+                className={`tab-button ${analyticsTab === 'releases' ? 'active' : ''}`}
+                onClick={() => setAnalyticsTab('releases')}
+              >
+                Releases
+              </button>
             </div>
             <div className="analytics-content">
               {analyticsTab === 'cycle-time' ? (
@@ -489,6 +496,13 @@ function App() {
                 </div>
               ) : analyticsTab === 'roadmap' ? (
                 <RoadmapView 
+                  workItems={workItems}
+                  project={selectedProject}
+                  areaPath={selectedAreaPath}
+                  onSelectItem={setSelectedItem}
+                />
+              ) : analyticsTab === 'releases' ? (
+                <ReleaseView 
                   workItems={workItems}
                   project={selectedProject}
                   areaPath={selectedAreaPath}
