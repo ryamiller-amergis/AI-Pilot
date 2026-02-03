@@ -11,6 +11,7 @@ dotenv.config();
 import apiRoutes from './routes/api';
 import authRoutes from './routes/auth';
 import { ensureAuthenticated } from './middleware/auth';
+import { getFeatureAutoCompleteService } from './services/featureAutoComplete';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -81,4 +82,9 @@ if (process.env.NODE_ENV === 'production') {
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
   console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+  
+  // Start the feature auto-complete background service
+  const featureAutoComplete = getFeatureAutoCompleteService();
+  featureAutoComplete.start();
+  console.log('Feature auto-complete service started');
 });

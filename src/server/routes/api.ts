@@ -1,6 +1,7 @@
 import express, { Request, Response } from 'express';
 import { AzureDevOpsService } from '../services/azureDevOps';
 import { WorkItemsQuery, UpdateDueDateRequest, DeveloperDueDateStats, DueDateHitRateStats } from '../types/workitem';
+import { getFeatureAutoCompleteService } from '../services/featureAutoComplete';
 
 const router = express.Router();
 
@@ -344,6 +345,27 @@ router.get('/workitems/:id/relations', async (req: Request, res: Response) => {
     console.error('Error fetching work item relations:', error);
     console.error('Stack trace:', error.stack);
     res.status(500).json({ error: 'Failed to fetch work item relations' });
+  }
+});
+
+// POST /api/admin/trigger-feature-check - Manually trigger feature auto-complete check
+router.post('/admin/trigger-feature-check', async (req: Request, res: Response) => {
+  try {
+    console.log('[API] Manual trigger of feature auto-complete check requested');
+    const service = getFeatureAutoCompleteService();
+    
+    // Run the check asynchronously
+    service.triggerCheck().catch(error => {
+      console.error('[API] Error during manual feature check:', error);
+    });
+    
+    res.json({ 
+      success: true, 
+      message: 'Feature auto-complete check triggered. Check server logs for results.' 
+    });
+  } catch (error: any) {
+    console.error('Error triggering feature check:', error);
+    res.status(500).json({ error: 'Failed to trigger feature check' });
   }
 });
 

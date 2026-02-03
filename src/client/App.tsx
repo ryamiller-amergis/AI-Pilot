@@ -9,10 +9,15 @@ import { CycleTimeAnalytics } from './components/CycleTimeAnalytics';
 import { DevStats } from './components/DevStats';
 import { RoadmapView } from './components/RoadmapView';
 import { DueDateReasonModal } from './components/DueDateReasonModal';
+import { Changelog } from './components/Changelog';
+import { UserMenu } from './components/UserMenu';
 import { Login } from './components/Login';
 import { useWorkItems } from './hooks/useWorkItems';
 import { WorkItem } from './types/workitem';
 import './App.css';
+
+// Current version - update this when releasing new versions
+const CURRENT_VERSION = '1.4.0';
 
 interface DueDateChange {
   workItemId: number;
@@ -30,6 +35,13 @@ function App() {
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     const saved = localStorage.getItem('theme');
     return (saved as 'light' | 'dark') || 'dark';
+  });
+  const [showChangelog, setShowChangelog] = useState(false);
+  const [hasUnreadChangelog, setHasUnreadChangelog] = useState(() => {
+    const lastReadVersion = localStorage.getItem('lastReadChangelogVersion');
+    const hasUnread = lastReadVersion !== CURRENT_VERSION;
+    console.log('Changelog status:', { lastReadVersion, currentVersion: CURRENT_VERSION, hasUnread });
+    return hasUnread;
   });
 
   // Parse available projects and area paths from environment (must be before any conditional returns)
@@ -164,6 +176,16 @@ function App() {
 
   const toggleTheme = () => {
     setTheme(prev => prev === 'light' ? 'dark' : 'light');
+  };
+
+  const handleOpenChangelog = () => {
+    setShowChangelog(true);
+  };
+
+  const handleMarkChangelogAsRead = () => {
+    console.log('Marking changelog as read:', CURRENT_VERSION);
+    localStorage.setItem('lastReadChangelogVersion', CURRENT_VERSION);
+    setHasUnreadChangelog(false);
   };
   const handleLogout = async () => {
     try {
@@ -361,12 +383,13 @@ function App() {
                 })}
               </select>
             </div>
-            <button className="theme-toggle" onClick={toggleTheme} title={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}>
-              {theme === 'light' ? 'Dark' : 'Light'}
-            </button>
-            <button className="sign-out-btn" onClick={handleLogout} title="Sign out">
-              Sign Out
-            </button>
+            <UserMenu
+              onOpenChangelog={handleOpenChangelog}
+              onToggleTheme={toggleTheme}
+              onLogout={handleLogout}
+              theme={theme}
+              hasUnreadChangelog={hasUnreadChangelog}
+            />
           </div>
         </div>
         {error && <div className="error-banner">{error}</div>}
@@ -384,6 +407,7 @@ function App() {
             />
             <ScrumCalendar
               workItems={scheduledItems}
+              unscheduledItems={unscheduledItems}
               onUpdateDueDate={(id, dueDate) => {
                 // Close details panel when dragging items
                 setSelectedItem(null);
@@ -488,6 +512,11 @@ function App() {
           </div>
         )}
       </div>
+      <Changelog 
+        isOpen={showChangelog}
+        onClose={() => setShowChangelog(false)}
+        onMarkAsRead={handleMarkChangelogAsRead}
+      />
     </DndProvider>
   );
 }

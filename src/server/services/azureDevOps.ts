@@ -85,6 +85,7 @@ export class AzureDevOpsService {
         'Microsoft.VSTS.Scheduling.DueDate',
         'Microsoft.VSTS.Scheduling.TargetDate',
         'Custom.QACompleteDate',
+        'System.Tags',
       ];
 
       const allWorkItems: WorkItem[] = [];
@@ -116,6 +117,12 @@ export class AzureDevOpsService {
             return result;
           };
 
+          // Debug logging for item 38656
+          if (wi.id === 38656) {
+            console.log('Item 38656 tags field:', wi.fields['System.Tags']);
+            console.log('Item 38656 all fields:', Object.keys(wi.fields));
+          }
+          
           allWorkItems.push({
             id: wi.id,
             title: wi.fields['System.Title'] || '',
@@ -130,6 +137,7 @@ export class AzureDevOpsService {
             closedDate: extractDate(wi.fields['Microsoft.VSTS.Common.ClosedDate']),
             areaPath: wi.fields['System.AreaPath'] || '',
             iterationPath: wi.fields['System.IterationPath'] || '',
+            tags: wi.fields['System.Tags'] || '',
           });
         }
       }
@@ -601,6 +609,7 @@ export class AzureDevOpsService {
         'System.IterationPath',
         'Microsoft.VSTS.Scheduling.DueDate',
         'Microsoft.VSTS.Scheduling.TargetDate',
+        'System.Tags',
       ];
 
       const allWorkItems: WorkItem[] = [];
@@ -639,6 +648,7 @@ export class AzureDevOpsService {
             closedDate: extractDate(wi.fields['Microsoft.VSTS.Common.ClosedDate']),
             areaPath: wi.fields['System.AreaPath'] || '',
             iterationPath: wi.fields['System.IterationPath'] || '',
+            tags: wi.fields['System.Tags'] || '',
           });
         }
       }
@@ -698,6 +708,7 @@ export class AzureDevOpsService {
         'System.IterationPath',
         'Microsoft.VSTS.Scheduling.DueDate',
         'Custom.QACompleteDate',
+        'System.Tags',
       ];
 
       const allWorkItems: WorkItem[] = [];
@@ -736,6 +747,7 @@ export class AzureDevOpsService {
             closedDate: extractDate(wi.fields['Microsoft.VSTS.Common.ClosedDate']),
             areaPath: wi.fields['System.AreaPath'] || '',
             iterationPath: wi.fields['System.IterationPath'] || '',
+            tags: wi.fields['System.Tags'] || '',
           });
         }
       }
@@ -1146,6 +1158,7 @@ export class AzureDevOpsService {
         'Microsoft.VSTS.Scheduling.DueDate',
         'Microsoft.VSTS.Scheduling.TargetDate',
         'Custom.QACompleteDate',
+        'System.Tags',
       ];
 
       const workItems = await witApi.getWorkItems(
@@ -1183,6 +1196,7 @@ export class AzureDevOpsService {
           closedDate: extractDate(wi.fields['Microsoft.VSTS.Common.ClosedDate']),
           areaPath: wi.fields['System.AreaPath'] || '',
           iterationPath: wi.fields['System.IterationPath'] || '',
+          tags: wi.fields['System.Tags'] || '',
         });
       }
 

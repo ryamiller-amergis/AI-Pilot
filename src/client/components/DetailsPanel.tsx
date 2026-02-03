@@ -48,6 +48,8 @@ export const DetailsPanel: React.FC<DetailsPanelProps> = ({
   }>>([]);
   const [isLoadingChanges, setIsLoadingChanges] = useState(false);
   const [showDueDateChanges, setShowDueDateChanges] = useState(false);
+  const [panelWidth, setPanelWidth] = useState(350);
+  const [isResizing, setIsResizing] = useState(false);
 
   if (!workItem) return null;
 
@@ -251,8 +253,44 @@ export const DetailsPanel: React.FC<DetailsPanelProps> = ({
     }
   };
 
+  const handleResizeStart = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizing(true);
+  };
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isResizing) return;
+      
+      const newWidth = window.innerWidth - e.clientX;
+      // Min width: 300px, Max width: 800px
+      if (newWidth >= 300 && newWidth <= 800) {
+        setPanelWidth(newWidth);
+      }
+    };
+
+    const handleMouseUp = () => {
+      setIsResizing(false);
+    };
+
+    if (isResizing) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+    }
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isResizing]);
+
   return (
-    <div className="details-panel">
+    <div className="details-panel" style={{ width: `${panelWidth}px` }}>
+      <div 
+        className="details-resize-handle" 
+        onMouseDown={handleResizeStart}
+        style={{ cursor: isResizing ? 'ew-resize' : 'col-resize' }}
+      />
       <div className="details-header">
         <h3>Work Item Details</h3>
         {isSaving && <span className="saving-badge">Saving...</span>}
@@ -407,39 +445,31 @@ export const DetailsPanel: React.FC<DetailsPanelProps> = ({
         {(workItem.workItemType === 'Epic' || workItem.workItemType === 'Feature' || workItem.workItemType === 'Bug') && (
           <div className="detail-row">
             <span className="detail-label">Target Date:</span>
-            {(workItem.workItemType === 'Feature' || workItem.workItemType === 'Bug') ? (
-              isEditingTargetDate ? (
-                <div className="detail-date-edit">
-                  <input 
-                    type="date"
-                    className="detail-date-input"
-                    value={tempTargetDate}
-                    onChange={(e) => setTempTargetDate(e.target.value)}
-                  />
-                  <button onClick={handleTargetDateSave} className="date-save-btn">✓</button>
-                  <button onClick={handleTargetDateCancel} className="date-cancel-btn">✕</button>
-                </div>
-              ) : (
-                <div className="detail-date-display">
-                  <span className="detail-value" style={{ 
-                    color: workItem.workItemType === 'Feature' ? '#FFA500' : '#DC143C', 
-                    fontWeight: 600 
-                  }}>
-                    {workItem.targetDate || 'Not set'}
-                  </span>
-                  <button onClick={handleTargetDateEdit} className="date-edit-btn">Edit</button>
-                  {workItem.targetDate && (
-                    <button onClick={handleRemoveTargetDate} className="date-remove-btn">Remove</button>
-                  )}
-                </div>
-              )
+            {isEditingTargetDate ? (
+              <div className="detail-date-edit">
+                <input 
+                  type="date"
+                  className="detail-date-input"
+                  value={tempTargetDate}
+                  onChange={(e) => setTempTargetDate(e.target.value)}
+                />
+                <button onClick={handleTargetDateSave} className="date-save-btn">✓</button>
+                <button onClick={handleTargetDateCancel} className="date-cancel-btn">✕</button>
+              </div>
             ) : (
-              <span className="detail-value" style={{ 
-                color: '#7B68EE', 
-                fontWeight: 600 
-              }}>
-                {workItem.targetDate || 'Not set'}
-              </span>
+              <div className="detail-date-display">
+                <span className="detail-value" style={{ 
+                  color: workItem.workItemType === 'Epic' ? '#7B68EE' : 
+                         workItem.workItemType === 'Feature' ? '#FFA500' : '#DC143C', 
+                  fontWeight: 600 
+                }}>
+                  {workItem.targetDate || 'Not set'}
+                </span>
+                <button onClick={handleTargetDateEdit} className="date-edit-btn">Edit</button>
+                {workItem.targetDate && (
+                  <button onClick={handleRemoveTargetDate} className="date-remove-btn">Remove</button>
+                )}
+              </div>
             )}
           </div>
         )}

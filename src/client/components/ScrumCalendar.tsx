@@ -25,6 +25,7 @@ const localizer = dateFnsLocalizer({
 
 interface ScrumCalendarProps {
   workItems: WorkItem[];
+  unscheduledItems: WorkItem[];
   onUpdateDueDate: (id: number, dueDate: string | null) => void;
   onUpdateField?: (id: number, field: string, value: any) => void;
   onSelectItem: (item: WorkItem) => void;
@@ -41,16 +42,18 @@ interface CalendarEvent {
 
 export const ScrumCalendar: React.FC<ScrumCalendarProps> = ({
   workItems,
+  unscheduledItems,
   onUpdateDueDate,
   onUpdateField,
   onSelectItem,
 }) => {
-  const [view, setView] = useState<View>('month');
+  const [view, setView] = useState<View>('agenda');
   const [date, setDate] = useState(new Date());
   const [selectedAssignedTo, setSelectedAssignedTo] = useState<string>('');
   const [selectedWorkItemType, setSelectedWorkItemType] = useState<string>('');
   const [selectedState, setSelectedState] = useState<string>('');
   const [selectedIteration, setSelectedIteration] = useState<string>('');
+  const [isUnscheduledCollapsed, setIsUnscheduledCollapsed] = useState<boolean>(false);
   const updateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const eventsRef = useRef<CalendarEvent[]>([]);
 
@@ -165,6 +168,30 @@ export const ScrumCalendar: React.FC<ScrumCalendarProps> = ({
       })
       .filter((event): event is CalendarEvent => event !== null);
   }, [filteredWorkItems]);
+
+  // Filter unscheduled items for agenda view based on selected filters
+  const filteredUnscheduledItems = useMemo(() => {
+    // Only show unscheduled items when a specific person is selected
+    if (!selectedAssignedTo) return [];
+    
+    return unscheduledItems.filter((item) => {
+      // Exclude Epics and Features from agenda view
+      if (item.workItemType === 'Epic' || item.workItemType === 'Feature') return false;
+      
+      // Exclude Done, Closed, and Removed items
+      if (item.state === 'Done' || item.state === 'Closed' || item.state === 'Removed') return false;
+      
+      // Must match the selected person
+      if (item.assignedTo !== selectedAssignedTo) return false;
+      
+      // Apply other filters if they are set
+      if (selectedWorkItemType && item.workItemType !== selectedWorkItemType) return false;
+      if (selectedState && item.state !== selectedState) return false;
+      if (selectedIteration && item.iterationPath !== selectedIteration) return false;
+      
+      return true;
+    });
+  }, [unscheduledItems, selectedAssignedTo, selectedWorkItemType, selectedState, selectedIteration]);
 
   // Update the ref when events change
   useEffect(() => {
@@ -390,6 +417,11 @@ export const ScrumCalendar: React.FC<ScrumCalendarProps> = ({
     const isTBI = event.resource.workItemType === 'Technical Backlog Item';
     const overdue = isItemOverdue(event.resource);
     
+    // Debug: Check if tags are present
+    if (event.resource.tags) {
+      console.log(`Item #${event.resource.id} has tags:`, event.resource.tags);
+    }
+    
     return (
       <div>
         <div style={{ 
@@ -428,15 +460,6 @@ export const ScrumCalendar: React.FC<ScrumCalendarProps> = ({
             borderRadius: '3px',
             fontWeight: 600
           }}>FEATURE</span>}
-          {isBug && <span style={{ 
-            marginLeft: '8px', 
-            fontSize: '0.8em', 
-            padding: '2px 6px', 
-            backgroundColor: '#DC143C', 
-            color: 'white', 
-            borderRadius: '3px',
-            fontWeight: 600
-          }}>BUG</span>}
           {overdue && <span style={{ 
             marginLeft: '8px', 
             fontSize: '0.8em', 
@@ -446,6 +469,26 @@ export const ScrumCalendar: React.FC<ScrumCalendarProps> = ({
             borderRadius: '3px',
             fontWeight: 600
           }}>OVERDUE</span>}
+          <span style={{ 
+            marginLeft: '8px', 
+            fontSize: '0.8em', 
+            padding: '2px 6px', 
+            backgroundColor: '#555', 
+            color: 'white', 
+            borderRadius: '3px',
+            fontWeight: 500
+          }}>{event.resource.state}</span>
+          {event.resource.tags && event.resource.tags.split(';').map((tag, idx) => (
+            <span key={idx} style={{ 
+              marginLeft: '4px', 
+              fontSize: '0.75em', 
+              padding: '2px 5px', 
+              backgroundColor: '#0078D4', 
+              color: 'white', 
+              borderRadius: '3px',
+              fontWeight: 500
+            }}>{tag.trim()}</span>
+          ))}
         </div>
         <div style={{ fontSize: '0.85em', color: colors.text }}>
           <strong>Assigned To:</strong> {event.resource.assignedTo || 'Unassigned'}
@@ -500,10 +543,17 @@ export const ScrumCalendar: React.FC<ScrumCalendarProps> = ({
         }}>⚠️</span>}
         {isEpic && <span style={{ marginRight: '3px', fontSize: '0.9em' }}>👑</span>}
         {isFeature && <span style={{ marginRight: '3px', fontSize: '0.9em' }}>⭐</span>}
-        {isBug && <span style={{ marginRight: '3px', fontSize: '0.9em' }}>🐛</span>}
         {isPBI && <span style={{ marginRight: '3px', fontSize: '0.9em' }}>📋</span>}
         {isTBI && <span style={{ marginRight: '3px', fontSize: '0.9em' }}>🔧</span>}
         #{event.resource.id} {event.resource.title}
+        <span style={{ 
+          marginLeft: '4px',
+          fontSize: '0.85em',
+          padding: '1px 4px',
+          backgroundColor: 'rgba(0, 0, 0, 0.2)',
+          borderRadius: '2px',
+          fontWeight: 500
+        }}>[{event.resource.state}]</span>
       </div>
     );
   };
@@ -601,6 +651,65 @@ export const ScrumCalendar: React.FC<ScrumCalendarProps> = ({
           </button>
         )}
       </div>
+      {view === 'agenda' && filteredUnscheduledItems.length > 0 && (
+        <div className="unscheduled-agenda-section">
+          <div className="unscheduled-header-row">
+            <h3 className="unscheduled-header">Unscheduled Items ({filteredUnscheduledItems.length})</h3>
+            <button 
+              className="collapse-btn"
+              onClick={() => setIsUnscheduledCollapsed(!isUnscheduledCollapsed)}
+              aria-label={isUnscheduledCollapsed ? 'Expand' : 'Collapse'}
+            >
+              {isUnscheduledCollapsed ? '▼' : '▲'}
+            </button>
+          </div>
+          {!isUnscheduledCollapsed && (
+            <div className="unscheduled-items-list">
+            {filteredUnscheduledItems.map((item) => {
+              const isEpic = item.workItemType === 'Epic';
+              const isFeature = item.workItemType === 'Feature';
+              const isBug = item.workItemType === 'Bug';
+              const isPBI = item.workItemType === 'Product Backlog Item';
+              const isTBI = item.workItemType === 'Technical Backlog Item';
+              const colors = getAssigneeColor(item.assignedTo);
+              
+              return (
+                <div 
+                  key={item.id} 
+                  className="unscheduled-item"
+                  onClick={() => onSelectItem(item)}
+                  style={{ cursor: 'pointer' }}
+                >
+                  <div className="unscheduled-item-header">
+                    <div className="unscheduled-item-icons">
+                      {isEpic && <span style={{ marginRight: '4px' }}>👑</span>}
+                      {isFeature && <span style={{ marginRight: '4px' }}>⭐</span>}
+                      {isBug && <span style={{ marginRight: '4px' }}>🐛</span>}
+                      {isPBI && <span style={{ marginRight: '4px' }}>📋</span>}
+                      {isTBI && <span style={{ marginRight: '4px' }}>🔧</span>}
+                      <span className="unscheduled-item-title">#{item.id}: {item.title}</span>
+                    </div>
+                    <div className="unscheduled-item-badges">
+                      {isEpic && <span className="type-badge epic-badge">EPIC</span>}
+                      {isFeature && <span className="type-badge feature-badge">FEATURE</span>}
+                      <span className="status-badge">{item.state}</span>
+                      {item.tags && item.tags.split(';').map((tag, idx) => (
+                        <span key={idx} className="tag-badge">{tag.trim()}</span>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="unscheduled-item-details">
+                    <span style={{ color: colors.text }}>
+                      <strong>Assigned To:</strong> {item.assignedTo}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+            </div>
+          )}
+        </div>
+      )}
       <DragAndDropCalendar
         localizer={localizer}
         events={events}

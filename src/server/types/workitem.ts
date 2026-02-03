@@ -12,6 +12,7 @@ export interface WorkItem {
   closedDate?: string;
   areaPath: string;
   iterationPath: string;
+  tags?: string;
   cycleTime?: CycleTimeData;
 }
 

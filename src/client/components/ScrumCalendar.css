@@ -309,3 +309,141 @@
     opacity: 0.7;
   }
 }
+
+/* Unscheduled items section for agenda view */
+.unscheduled-agenda-section {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.unscheduled-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  border-bottom: 2px solid var(--accent-color);
+  padding-bottom: 8px;
+}
+
+.unscheduled-header {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.collapse-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: background 0.2s ease;
+}
+
+.collapse-btn:hover {
+  background: var(--bg-primary);
+}
+
+.collapse-btn:focus {
+  outline: 2px solid var(--accent-color);
+  outline-offset: 2px;
+}
+
+.unscheduled-items-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.unscheduled-item {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-left: 4px solid var(--accent-color);
+  border-radius: 4px;
+  padding: 12px;
+  transition: all 0.2s ease;
+}
+
+.unscheduled-item:hover {
+  box-shadow: 0 2px 8px var(--shadow-md);
+  transform: translateX(4px);
+  border-left-color: var(--success-color);
+}
+
+.unscheduled-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.unscheduled-item-icons {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.unscheduled-item-title {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.unscheduled-item-badges {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.type-badge {
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-size: 0.75em;
+  font-weight: 600;
+  color: white;
+}
+
+.epic-badge {
+  background-color: #7B68EE;
+}
+
+.feature-badge {
+  background-color: #FFA500;
+}
+
+.bug-badge {
+  background-color: #DC143C;
+}
+
+.status-badge {
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-size: 0.75em;
+  font-weight: 500;
+  background-color: #555;
+  color: white;
+}
+
+.tag-badge {
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 0.7em;
+  font-weight: 500;
+  background-color: #0078D4;
+  color: white;
+  margin-left: 4px;
+}
+
+.unscheduled-item-details {
+  font-size: 0.9em;
+  color: var(--text-secondary);
+}

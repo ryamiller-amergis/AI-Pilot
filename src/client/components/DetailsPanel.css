@@ -11,6 +11,28 @@
   overflow-y: auto;
 }
 
+.details-resize-handle {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 6px;
+  height: 100%;
+  cursor: col-resize;
+  background: transparent;
+  z-index: 1001;
+  transition: background 0.2s;
+}
+
+.details-resize-handle:hover {
+  background: var(--accent-color);
+  opacity: 0.3;
+}
+
+.details-resize-handle:active {
+  background: var(--accent-color);
+  opacity: 0.5;
+}
+
 .details-header {
   display: flex;
   justify-content: space-between;

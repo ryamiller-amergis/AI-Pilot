@@ -143,12 +143,12 @@ export function calculateCompletionPercentage(children: WorkItem[]): number {
   if (!children || children.length === 0) return 0;
 
   // For Features (children of Epics), only Done/Closed count as complete
-  // For PBIs/TBIs (children of Features), use the full completed states
+  // For PBIs/TBIs/Bugs (children of Features), use the full completed states including Ready For Release
   const isFeatureLevel = children.some(child => child.workItemType === 'Feature');
   
   const completedStates = isFeatureLevel 
     ? ['Done', 'Closed']  // Features: only Done/Closed
-    : ['UAT - Test Done', 'Done', 'Closed'];  // PBIs: include UAT complete
+    : ['Ready For Release', 'UAT - Test Done', 'Done', 'Closed'];  // PBIs/Bugs: include Ready For Release and UAT complete
   
   // In Progress states indicate active work
   const inProgressStates = ['In Progress', 'In Pull Request', 'Ready For Test', 'In Test'];

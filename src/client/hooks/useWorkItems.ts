@@ -49,6 +49,13 @@ export function useWorkItems(
         
         const items = await workItemService.getWorkItems(from, to, project, normalizedAreaPath);
         
+        // Debug: Check for tags in fetched items
+        const itemsWithTags = items.filter(item => item.tags);
+        console.log(`Fetched ${items.length} work items, ${itemsWithTags.length} have tags`);
+        if (itemsWithTags.length > 0) {
+          console.log('Items with tags:', itemsWithTags.map(i => ({ id: i.id, tags: i.tags })));
+        }
+        
         // Only update if this response is for the current team selection
         if (requestParams.project === currentRequestRef.current.project && 
             requestParams.areaPath === currentRequestRef.current.areaPath) {

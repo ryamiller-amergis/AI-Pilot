@@ -33,6 +33,7 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ workItems, project, areaPath,
   const [childrenCache, setChildrenCache] = useState<Map<number, WorkItem[]>>(new Map());
   const [loadingChildren, setLoadingChildren] = useState<Set<number>>(new Set());
   const [showInfoPanel, setShowInfoPanel] = useState<boolean>(false);
+  const [selectedStatus, setSelectedStatus] = useState<string>('');
 
   // Generate timeline columns based on granularity and time range
   const timelineColumns: TimelineColumn[] = React.useMemo(() => {
@@ -121,7 +122,8 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ workItems, project, areaPath,
   useEffect(() => {
     // Only show Epics with target dates in the main view
     const epicsWithTargetDates = workItems.filter(item => 
-      item.targetDate && item.workItemType === 'Epic'
+      item.targetDate && item.workItemType === 'Epic' &&
+      (selectedStatus === '' || item.state === selectedStatus)
     );
 
     const items = epicsWithTargetDates.map(item => {
@@ -145,7 +147,7 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ workItems, project, areaPath,
         timeElapsedPercentage,
         children: []
       };
-    }).sort((a, b) => new Date(b.targetDate).getTime() - new Date(a.targetDate).getTime());
+    }).sort((a, b) => new Date(a.targetDate).getTime() - new Date(b.targetDate).getTime());
     
     // Update children cache with fresh work item data
     const updatedCache = new Map(childrenCache);
@@ -188,7 +190,7 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ workItems, project, areaPath,
         fetchChildren(item);
       }
     });
-  }, [workItems]);
+  }, [workItems, selectedStatus]);
 
   // Update roadmap items with completion data from children
   useEffect(() => {
@@ -220,7 +222,7 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ workItems, project, areaPath,
     const isFeatureLevel = children.some(child => child.workItemType === 'Feature');
     const completedStates = isFeatureLevel 
       ? ['Done', 'Closed']
-      : ['UAT - Test Done', 'Done', 'Closed'];
+      : ['Ready For Release', 'UAT - Test Done', 'Done', 'Closed'];
     
     const completedCount = children.filter(child => completedStates.includes(child.state)).length;
     const daysRemaining = calculateDaysRemaining(item.targetDate);
@@ -346,6 +348,21 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ workItems, project, areaPath,
               <option value="3">3 Months</option>
               <option value="6">6 Months</option>
               <option value="12">12 Months</option>
+            </select>
+          </div>
+
+          <div className="control-group">
+            <label>Status:</label>
+            <select 
+              value={selectedStatus} 
+              onChange={(e) => setSelectedStatus(e.target.value)}
+            >
+              <option value="">All Statuses</option>
+              <option value="New">New</option>
+              <option value="In Progress">In Progress</option>
+              <option value="In Design">In Design</option>
+              <option value="Done">Done</option>
+              <option value="Removed">Removed</option>
             </select>
           </div>
         </div>
@@ -566,7 +583,7 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ workItems, project, areaPath,
                                   <div className="feature-progress-inline">
                                     <span className="feature-completion-text">
                                       {(() => {
-                                        const completedStates = ['UAT - Test Done', 'Done', 'Closed'];
+                                        const completedStates = ['Ready For Release', 'UAT - Test Done', 'Done', 'Closed'];
                                         const completedCount = grandChildren.filter(gc => completedStates.includes(gc.state)).length;
                                         const percentage = grandChildren.length > 0 ? Math.round((completedCount / grandChildren.length) * 100) : 0;
                                         return `${percentage}% (${completedCount}/${grandChildren.length})`;
@@ -586,7 +603,7 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ workItems, project, areaPath,
                                       className="roadmap-card feature-card"
                                       style={{ 
                                         borderLeftColor: (() => {
-                                          const completedStates = ['UAT - Test Done', 'Done', 'Closed'];
+                                          const completedStates = ['Ready For Release', 'UAT - Test Done', 'Done', 'Closed'];
                                           const completedCount = grandChildren.filter(gc => completedStates.includes(gc.state)).length;
                                           const percentage = grandChildren.length > 0 ? Math.round((completedCount / grandChildren.length) * 100) : 0;
                                           const daysRemaining = calculateDaysRemaining(child.targetDate!);
@@ -602,7 +619,7 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ workItems, project, areaPath,
                                           className="health-badge"
                                           style={{ 
                                             backgroundColor: (() => {
-                                              const completedStates = ['UAT - Test Done', 'Done', 'Closed'];
+                                              const completedStates = ['Ready For Release', 'UAT - Test Done', 'Done', 'Closed'];
                                               const completedCount = grandChildren.filter(gc => completedStates.includes(gc.state)).length;
                                               const percentage = grandChildren.length > 0 ? Math.round((completedCount / grandChildren.length) * 100) : 0;
                                               const daysRemaining = calculateDaysRemaining(child.targetDate!);
@@ -614,7 +631,7 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ workItems, project, areaPath,
                                           }}
                                         >
                                           {(() => {
-                                            const completedStates = ['UAT - Test Done', 'Done', 'Closed'];
+                                            const completedStates = ['Ready For Release', 'UAT - Test Done', 'Done', 'Closed'];
                                             const completedCount = grandChildren.filter(gc => completedStates.includes(gc.state)).length;
                                             const percentage = grandChildren.length > 0 ? Math.round((completedCount / grandChildren.length) * 100) : 0;
                                             const daysRemaining = calculateDaysRemaining(child.targetDate!);
@@ -631,12 +648,12 @@ const RoadmapView: React.FC<RoadmapViewProps> = ({ workItems, project, areaPath,
                                             className="progress-bar-fill"
                                             style={{ 
                                               width: `${(() => {
-                                                const completedStates = ['UAT - Test Done', 'Done', 'Closed'];
+                                                const completedStates = ['Ready For Release', 'UAT - Test Done', 'Done', 'Closed'];
                                                 const completedCount = grandChildren.filter(gc => completedStates.includes(gc.state)).length;
                                                 return grandChildren.length > 0 ? Math.round((completedCount / grandChildren.length) * 100) : 0;
                                               })()}%`,
                                               backgroundColor: (() => {
-                                                const completedStates = ['UAT - Test Done', 'Done', 'Closed'];
+                                                const completedStates = ['Ready For Release', 'UAT - Test Done', 'Done', 'Closed'];
                                                 const completedCount = grandChildren.filter(gc => completedStates.includes(gc.state)).length;
                                                 const percentage = grandChildren.length > 0 ? Math.round((completedCount / grandChildren.length) * 100) : 0;
                                                 const daysRemaining = calculateDaysRemaining(child.targetDate!);

@@ -22,6 +22,8 @@ export const UnscheduledList: React.FC<UnscheduledListProps> = ({
   const [isDropZone, setIsDropZone] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
+  const [width, setWidth] = useState<number>(250);
+  const [isResizing, setIsResizing] = useState(false);
 
   // Get unique iteration values
   const iterationOptions = useMemo(() => {
@@ -42,6 +44,8 @@ export const UnscheduledList: React.FC<UnscheduledListProps> = ({
         unique.add(item.workItemType);
       }
     });
+    // Ensure Bug is always available as an option
+    unique.add('Bug');
     return Array.from(unique).sort();
   }, [workItems]);
 
@@ -125,9 +129,39 @@ export const UnscheduledList: React.FC<UnscheduledListProps> = ({
     }
   };
 
+  const handleResizeStart = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizing(true);
+  };
+
+  React.useEffect(() => {
+    if (!isResizing) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const newWidth = e.clientX;
+      // Constrain width between 200px and 600px
+      if (newWidth >= 200 && newWidth <= 600) {
+        setWidth(newWidth);
+      }
+    };
+
+    const handleMouseUp = () => {
+      setIsResizing(false);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isResizing]);
+
   return (
     <div 
       className={`unscheduled-list ${isDropZone ? 'drop-zone-active' : ''} ${isCollapsed ? 'collapsed' : ''}`}
+      style={{ width: isCollapsed ? '40px' : `${width}px` }}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
@@ -139,6 +173,15 @@ export const UnscheduledList: React.FC<UnscheduledListProps> = ({
       >
         {isCollapsed ? '▶' : '◀'}
       </button>
+      {!isCollapsed && (
+        <div
+          className="resize-handle"
+          onMouseDown={handleResizeStart}
+          title="Drag to resize"
+        >
+          <div className="resize-handle-line" />
+        </div>
+      )}
       
       {!isCollapsed && (
         <>
