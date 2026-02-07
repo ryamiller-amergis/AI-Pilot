@@ -1229,12 +1229,19 @@
   border-radius: 10px;
   padding: 16px;
   transition: all 0.2s ease;
-  cursor: pointer;
   display: flex;
   flex-direction: column;
   gap: 12px;
   position: relative;
   overflow: hidden;
+}
+
+.child-item-content {
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex: 1;
 }
 
 .child-item-card::before {
@@ -1259,6 +1266,24 @@
   opacity: 1;
 }
 
+/* Highlight for cards with UAT-ready children */
+.child-item-card.has-uat-ready {
+  border-color: #ff9800;
+  background: linear-gradient(to right, rgba(255, 152, 0, 0.08), var(--bg-primary));
+  box-shadow: 0 2px 8px rgba(255, 152, 0, 0.2);
+}
+
+.child-item-card.has-uat-ready::before {
+  background: #ff9800;
+  opacity: 1;
+  width: 6px;
+}
+
+.child-item-card.has-uat-ready:hover {
+  border-color: #ff9800;
+  box-shadow: 0 4px 12px rgba(255, 152, 0, 0.3);
+}
+
 /* Type-specific colors */
 .child-item-card.type-feature::before {
   background: #9c27b0;
@@ -1276,18 +1301,42 @@
   background: #00796b;
 }
 
+/* Unlink Button */
+.btn-unlink-item {
+  background: rgba(211, 47, 47, 0.1);
+  border: 1px solid rgba(211, 47, 47, 0.3);
+  border-radius: 6px;
+  color: #d32f2f;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: bold;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.btn-unlink-item:hover {
+  background: #d32f2f;
+  color: white;
+  border-color: #d32f2f;
+  transform: scale(1.1);
+}
+
+.btn-unlink-item:active {
+  transform: scale(0.95);
+}
+
 /* Card Header */
 .child-item-header {
   display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 8px;
-}
-
-.child-item-id-wrapper {
-  display: flex;
   flex-direction: column;
+  align-items: flex-start;
   gap: 6px;
+  padding-right: 44px;
 }
 
 .child-item-id {
@@ -1395,6 +1444,14 @@
   border-top: 1px solid var(--border-color-light);
 }
 
+.footer-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  flex-wrap: wrap;
+}
+
 .child-item-assignee {
   display: flex;
   align-items: center;
@@ -1480,6 +1537,214 @@
 .btn-expand:hover {
   color: var(--accent-color);
   transform: scale(1.2);
+}
+
+/* Nested Item Expand Button */
+.btn-expand-nested {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: rgba(0, 120, 212, 0.08);
+  border: 1px solid rgba(0, 120, 212, 0.2);
+  border-radius: 6px;
+  cursor: pointer;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  color: var(--accent-color);
+  z-index: 10;
+}
+
+.btn-expand-nested:hover {
+  background: rgba(0, 120, 212, 0.15);
+  border-color: var(--accent-color);
+  transform: scale(1.08);
+  box-shadow: 0 2px 8px rgba(0, 120, 212, 0.2);
+}
+
+.btn-expand-nested:active {
+  transform: scale(0.95);
+}
+
+.expand-icon {
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  transform: rotate(-90deg);
+}
+
+.expand-icon.expanded {
+  transform: rotate(0deg);
+}
+
+.child-item-card.has-uat-ready .btn-expand-nested {
+  background: rgba(255, 152, 0, 0.1);
+  border-color: rgba(255, 152, 0, 0.3);
+  color: #ff9800;
+}
+
+.child-item-card.has-uat-ready .btn-expand-nested:hover {
+  background: rgba(255, 152, 0, 0.2);
+  border-color: #ff9800;
+}
+
+/* Nested Children Container */
+.nested-children-container {
+  margin-top: 12px;
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.02);
+  border-radius: 8px;
+  border-left: 3px solid var(--accent-color);
+}
+
+.nested-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.nested-empty {
+  padding: 12px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-style: italic;
+  text-align: center;
+}
+
+.nested-items-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.nested-item {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.nested-item:hover {
+  border-color: var(--accent-color);
+  box-shadow: 0 2px 6px rgba(0, 120, 212, 0.1);
+  transform: translateX(4px);
+}
+
+.nested-item-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.nested-item-id {
+  font-family: monospace;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent-color);
+  flex-shrink: 0;
+}
+
+.nested-item-title {
+  font-size: 13px;
+  color: var(--text-primary);
+  flex: 1;
+  min-width: 120px;
+}
+
+.nested-item-type {
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-weight: 500;
+  flex-shrink: 0;
+}
+
+.nested-item-type.type-product-backlog-item {
+  background: rgba(103, 58, 183, 0.1);
+  color: #673ab7;
+  border: 1px solid rgba(103, 58, 183, 0.3);
+}
+
+.nested-item-type.type-bug {
+  background: rgba(211, 47, 47, 0.1);
+  color: #d32f2f;
+  border: 1px solid rgba(211, 47, 47, 0.3);
+}
+
+.nested-item-type.type-task {
+  background: rgba(0, 120, 212, 0.1);
+  color: #0078d4;
+  border: 1px solid rgba(0, 120, 212, 0.3);
+}
+
+.nested-item-state {
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-weight: 500;
+  flex-shrink: 0;
+}
+
+.nested-item-state.state-done,
+.nested-item-state.state-closed {
+  background: rgba(76, 175, 80, 0.1);
+  color: #4caf50;
+  border: 1px solid rgba(76, 175, 80, 0.3);
+}
+
+.nested-item-state.state-in-progress,
+.nested-item-state.state-committed {
+  background: rgba(33, 150, 243, 0.1);
+  color: #2196f3;
+  border: 1px solid rgba(33, 150, 243, 0.3);
+}
+
+.nested-item-state.state-uat-ready-for-test,
+.nested-item-state.state-uat---ready-for-test {
+  background: rgba(255, 152, 0, 0.1);
+  color: #ff9800;
+  border: 1px solid rgba(255, 152, 0, 0.3);
+}
+
+.nested-item-assignee {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.nested-assignee-avatar {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent-color), #9c27b0);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.nested-assignee-name {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.child-item-card.expanded {
+  border-color: var(--accent-color);
 }
 
 /* Responsive Design */

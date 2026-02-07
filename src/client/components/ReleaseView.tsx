@@ -58,6 +58,10 @@ const ReleaseView: React.FC<ReleaseViewProps> = ({
   const [deletingEpicId, setDeletingEpicId] = useState<number | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showProgressInfo, setShowProgressInfo] = useState(false);
+  const [itemsWithUatReadyChildren, setItemsWithUatReadyChildren] = useState<Set<number>>(new Set());
+  const [expandedNestedItems, setExpandedNestedItems] = useState<Set<number>>(new Set());
+  const [nestedChildren, setNestedChildren] = useState<Map<number, WorkItem[]>>(new Map());
+  const [loadingNestedChildren, setLoadingNestedChildren] = useState<Set<number>>(new Set());
 
   // Fetch all release versions on mount
   useEffect(() => {
@@ -393,6 +397,118 @@ const ReleaseView: React.FC<ReleaseViewProps> = ({
     }
   };
 
+  const handleUnlinkItem = async (epicId: number, workItemId: number) => {
+    if (!confirm('Are you sure you want to unlink this item from the release?')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/releases/${epicId}/unlink-related`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          workItemIds: [workItemId],
+          project,
+          areaPath,
+        }),
+      });
+
+      if (response.ok) {
+        console.log(`Unlinked item ${workItemId} from epic ${epicId}`);
+        // Update local state to remove the item
+        setChildItems(prev => {
+          const next = new Map(prev);
+          const items = next.get(epicId) || [];
+          next.set(epicId, items.filter(item => item.id !== workItemId));
+          return next;
+        });
+        // Refresh epic list to update progress counts
+        fetchReleaseEpics();
+      } else {
+        const error = await response.json();
+        alert(`Failed to unlink item: ${error.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('Error unlinking item:', error);
+      alert('Failed to unlink item. Please try again.');
+    }
+  };
+
+  const checkForUatReadyChildren = async (workItemId: number, workItemType: string) => {
+    // Only check for Epics and Features
+    if (workItemType !== 'Epic' && workItemType !== 'Feature') {
+      return;
+    }
+
+    try {
+      let endpoint = '';
+      if (workItemType === 'Epic') {
+        endpoint = `/api/epics/${workItemId}/children?project=${encodeURIComponent(project)}&areaPath=${encodeURIComponent(areaPath)}`;
+      } else if (workItemType === 'Feature') {
+        endpoint = `/api/features/${workItemId}/children?project=${encodeURIComponent(project)}&areaPath=${encodeURIComponent(areaPath)}`;
+      }
+
+      const response = await fetch(endpoint);
+      if (response.ok) {
+        const children = await response.json();
+        // Check if any children are in UAT Ready for Test state
+        const hasUatReady = children.some((child: WorkItem) => 
+          child.state === 'UAT - Ready For Test' || 
+          child.state === 'UAT Ready For Test' ||
+          child.state === 'UAT-Ready For Test'
+        );
+
+        if (hasUatReady) {
+          setItemsWithUatReadyChildren(prev => new Set(prev).add(workItemId));
+        }
+      }
+    } catch (error) {
+      console.error('Error checking for UAT-ready children:', error);
+    }
+  };
+
+  const toggleNestedItemExpansion = async (itemId: number, workItemType: string) => {
+    const newExpanded = new Set(expandedNestedItems);
+    
+    if (expandedNestedItems.has(itemId)) {
+      // Collapse
+      newExpanded.delete(itemId);
+      setExpandedNestedItems(newExpanded);
+    } else {
+      // Expand
+      newExpanded.add(itemId);
+      setExpandedNestedItems(newExpanded);
+      
+      // Fetch children if not already loaded
+      if (!nestedChildren.has(itemId)) {
+        setLoadingNestedChildren(prev => new Set(prev).add(itemId));
+        
+        try {
+          let endpoint = '';
+          if (workItemType === 'Epic') {
+            endpoint = `/api/epics/${itemId}/children?project=${encodeURIComponent(project)}&areaPath=${encodeURIComponent(areaPath)}`;
+          } else if (workItemType === 'Feature') {
+            endpoint = `/api/features/${itemId}/children?project=${encodeURIComponent(project)}&areaPath=${encodeURIComponent(areaPath)}`;
+          }
+          
+          const response = await fetch(endpoint);
+          if (response.ok) {
+            const children = await response.json();
+            setNestedChildren(prev => new Map(prev).set(itemId, children));
+          }
+        } catch (error) {
+          console.error('Error fetching nested children:', error);
+        } finally {
+          setLoadingNestedChildren(prev => {
+            const next = new Set(prev);
+            next.delete(itemId);
+            return next;
+          });
+        }
+      }
+    }
+  };
+
   const handleDeleteReleaseEpic = async () => {
     if (!deletingEpicId) return;
 
@@ -457,6 +573,13 @@ const ReleaseView: React.FC<ReleaseViewProps> = ({
               next.set(epicId, children);
               return next;
             });
+            
+            // Check each child for UAT-ready descendants
+            for (const child of children) {
+              if (child.workItemType === 'Epic' || child.workItemType === 'Feature') {
+                checkForUatReadyChildren(child.id, child.workItemType);
+              }
+            }
           } else {
             console.error(`Failed to fetch children: ${response.status} ${response.statusText}`);
           }
@@ -745,54 +868,150 @@ const ReleaseView: React.FC<ReleaseViewProps> = ({
                               {childItems.get(epic.id)?.map((item) => {
                                 const stateClass = item.state.toLowerCase().replace(/\s+/g, '-');
                                 const typeClass = item.workItemType.toLowerCase().replace(/\s+/g, '-');
+                                const hasUatReadyChildren = itemsWithUatReadyChildren.has(item.id);
+                                const isExpandable = item.workItemType === 'Epic' || item.workItemType === 'Feature';
+                                const isExpanded = expandedNestedItems.has(item.id);
                                 
                                 return (
-                                  <div 
-                                    key={item.id} 
-                                    className={`child-item-card type-${typeClass}`}
-                                    onClick={() => onSelectItem && onSelectItem(item)}
-                                    title="Click to view details"
-                                  >
-                                    <div className="child-item-header">
-                                      <div className="child-item-id-wrapper">
-                                        <span className="child-item-id">#{item.id}</span>
-                                        <span className={`child-item-type type-${typeClass}`}>
-                                          {item.workItemType}
-                                        </span>
-                                      </div>
-                                      <span className={`child-item-state state-${stateClass}`}>
-                                        {item.state}
-                                      </span>
-                                    </div>
-                                    
-                                    <div className="child-item-title" title={item.title}>
-                                      {item.title}
-                                    </div>
-                                    
-                                    <div className="child-item-footer">
-                                      {item.assignedTo ? (
-                                        <div className="child-item-assignee">
-                                          <span className="assignee-avatar">
-                                            {item.assignedTo.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2)}
+                                  <React.Fragment key={item.id}>
+                                    <div 
+                                      className={`child-item-card type-${typeClass}${hasUatReadyChildren ? ' has-uat-ready' : ''}${isExpanded ? ' expanded' : ''}`}
+                                    >
+                                      {isExpandable && (
+                                        <button
+                                          className="btn-expand-nested"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            toggleNestedItemExpansion(item.id, item.workItemType);
+                                          }}
+                                          title={isExpanded ? "Collapse children" : "Expand to view children"}
+                                        >
+                                          <svg 
+                                            width="20" 
+                                            height="20" 
+                                            viewBox="0 0 20 20" 
+                                            fill="none" 
+                                            className={`expand-icon${isExpanded ? ' expanded' : ''}`}
+                                          >
+                                            <path 
+                                              d="M6 8L10 12L14 8" 
+                                              stroke="currentColor" 
+                                              strokeWidth="2" 
+                                              strokeLinecap="round" 
+                                              strokeLinejoin="round"
+                                            />
+                                          </svg>
+                                        </button>
+                                      )}
+                                      <div 
+                                        className="child-item-content"
+                                        onClick={() => onSelectItem && onSelectItem(item)}
+                                        title="Click to view details"
+                                      >
+                                        <div className="child-item-header">
+                                          <span className="child-item-id">#{item.id}</span>
+                                          <span className={`child-item-type type-${typeClass}`}>
+                                            {item.workItemType}
                                           </span>
-                                          <span className="assignee-name">{item.assignedTo}</span>
+                                          <span className={`child-item-state state-${stateClass}`}>
+                                            {item.state}
+                                          </span>
                                         </div>
-                                      ) : (
-                                        <div className="child-item-unassigned">
-                                          <span className="unassigned-icon">👤</span>
-                                          <span className="unassigned-text">Unassigned</span>
+                                        
+                                        <div className="child-item-title" title={item.title}>
+                                          {item.title}
                                         </div>
-                                      )}
-                                      
-                                      {item.targetDate && (
-                                        <div className="child-item-date">
-                                          <span className="date-icon">📅</span>
-                                          <span className="date-text">{new Date(item.targetDate).toLocaleDateString()}</span>
-                                        </div>
-                                      )}
+                                        
+                                        <div className="child-item-footer">
+                                          <div className="footer-left">
+                                            {item.assignedTo ? (
+                                              <div className="child-item-assignee">
+                                                <span className="assignee-avatar">
+                                                  {item.assignedTo.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2)}
+                                                </span>
+                                                <span className="assignee-name">{item.assignedTo}</span>
+                                              </div>
+                                            ) : (
+                                              <div className="child-item-unassigned">
+                                                <span className="unassigned-icon">👤</span>
+                                                <span className="unassigned-text">Unassigned</span>
+                                              </div>
+                                            )}
+                                            
+                                            {item.targetDate && (
+                                              <div className="child-item-date">
+                                                <span className="date-icon">📅</span>
+                                                <span className="date-text">{new Date(item.targetDate).toLocaleDateString()}</span>
+                                              </div>
+                                            )}
+                                          </div>
+                                          
+                                          <button
+                                            className="btn-unlink-item"
+                                            onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleUnlinkItem(epic.id, item.id);
+                                          }}
+                                          title="Unlink from release"
+                                        >
+                                          ✕
+                                        </button>
+                                      </div>
                                     </div>
+                                    
+                                    {/* Nested children for Epic/Feature */}
+                                    {isExpanded && (
+                                      <div className="nested-children-container">
+                                        {loadingNestedChildren.has(item.id) ? (
+                                          <div className="nested-loading">
+                                            <div className="loading-spinner"></div>
+                                            <span>Loading child items...</span>
+                                          </div>
+                                        ) : nestedChildren.get(item.id)?.length === 0 ? (
+                                          <div className="nested-empty">
+                                            <span>No child items found</span>
+                                          </div>
+                                        ) : (
+                                          <div className="nested-items-list">
+                                            {nestedChildren.get(item.id)?.map((nestedItem) => {
+                                              const nestedStateClass = nestedItem.state.toLowerCase().replace(/\s+/g, '-');
+                                              const nestedTypeClass = nestedItem.workItemType.toLowerCase().replace(/\s+/g, '-');
+                                              
+                                              return (
+                                                <div 
+                                                  key={nestedItem.id} 
+                                                  className={`nested-item type-${nestedTypeClass}`}
+                                                  onClick={() => onSelectItem && onSelectItem(nestedItem)}
+                                                  title="Click to view details"
+                                                >
+                                                  <div className="nested-item-main">
+                                                    <div className="nested-item-id">#{nestedItem.id}</div>
+                                                    <div className="nested-item-title">{nestedItem.title}</div>
+                                                    <span className={`nested-item-type type-${nestedTypeClass}`}>
+                                                      {nestedItem.workItemType}
+                                                    </span>
+                                                    <span className={`nested-item-state state-${nestedStateClass}`}>
+                                                      {nestedItem.state}
+                                                    </span>
+                                                  </div>
+                                                  {nestedItem.assignedTo && (
+                                                    <div className="nested-item-assignee">
+                                                      <span className="nested-assignee-avatar">
+                                                        {nestedItem.assignedTo.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2)}
+                                                      </span>
+                                                      <span className="nested-assignee-name">{nestedItem.assignedTo}</span>
+                                                    </div>
+                                                  )}
+                                                </div>
+                                              );
+                                            })}
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
                                   </div>
-                                );
+                                </React.Fragment>
+                              );
                               })}
                             </div>
                           )}
